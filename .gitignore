@@ -1,0 +1,20 @@
+node_modules/
+artifacts/
+cache/
+coverage/
+typechain-types/
+dist/
+.env
+.env.*
+!.env.example
+deployments/
+graphify-out/
+
+# Local documents and editor preferences; publish only the root README.
+*.md
+!/README.md
+docs/
+.agents/
+.vscode/
+*.pem
+*.key
