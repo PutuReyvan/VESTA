@@ -9,6 +9,7 @@ dist/
 !.env.example
 deployments/
 graphify-out/
+output/
 
 # Local documents and editor preferences; publish only the root README.
 *.md

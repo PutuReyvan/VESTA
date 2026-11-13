@@ -4,7 +4,9 @@ An ERC-20 vesting project for a five-person university team. The planned differe
 
 ## Current status
 
-This repository contains the **foundation**, not a complete DApp: a contract interface, deployable skeleton, local test token, deployment script, and two smoke tests. Vesting calculations, batch creation, claims, and the frontend are not implemented. Feature methods explicitly revert with `NotImplemented()`.
+The core DApp path is implemented: the contract creates exactly funded atomic batches, calculates linear vesting with an absolute cliff timestamp, and sends claims directly to the recorded beneficiary. The React frontend reads live contract state and submits approval, batch creation, and claim transactions through an injected wallet.
+
+The current access model has two on-chain identities: the immutable admin and each schedule beneficiary. Four-role authorization and off-chain CRUD are not implemented in this core branch.
 
 ## MVP scope
 
@@ -19,7 +21,7 @@ ERC-20 approval is a separate transaction when allowance is insufficient. Atomic
 
 ## Setup
 
-Use Node.js 22 and npm 10 or later. The foundation uses Hardhat, TypeScript, Solidity 0.8.24, ethers 6, and OpenZeppelin Contracts 5.
+Use Node.js 22 and npm 10 or later. The project uses Hardhat, TypeScript, Solidity 0.8.24, ethers 6, React, and OpenZeppelin Contracts 5.
 
 ```sh
 npm ci
@@ -27,6 +29,11 @@ npm run build
 npm test
 npm run lint
 npx tsc --noEmit
+
+cd frontend
+npm ci
+npm run build
+npm run lint
 ```
 
 An environment file is unnecessary for compilation and local tests. For deployment, copy `.env.example` to `.env` and fill in the required values. Leave unused values empty. Never commit private keys or a populated environment file.
@@ -36,18 +43,20 @@ An environment file is unnecessary for compilation and local tests. For deployme
 | Path | Purpose |
 | --- | --- |
 | `contracts/interfaces/IVestingManager.sol` | Shared schedule shape and function signatures |
-| `contracts/VestingManager.sol` | Configured token/admin and explicit feature stubs |
+| `contracts/VestingManager.sol` | Atomic batch creation, vesting math, and direct claims |
 | `contracts/test/MockERC20.sol` | Mintable local test fixture |
-| `test/VestingManager.smoke.ts` | Configuration and unfinished-path checks |
+| `test/` | Deployment, rollback, vesting, and claim acceptance tests |
 | `scripts/deploy.ts` | Deploy the manager for a supplied token address |
+| `frontend/src/features/vesting/` | Ethers adapter for all contract reads and writes |
+| `frontend/src/pages/` | Admin overview, batch creation, and beneficiary vesting screens |
 
 Generated artifacts, dependencies, local planning documents, and agent instructions are not versioned.
 
 ## Contract flow
 
-The target admin flow is `token.approve(manager, total)` when needed, followed by `manager.createBatch(...)`. The target beneficiary flow reads schedules and available amounts, then calls `manager.claim(scheduleId)`. These features remain stubs.
+The admin flow is `token.approve(manager, total)` when allowance is insufficient, followed by `manager.createBatch(...)`. Approval is a separate ERC-20 transaction; atomicity applies to validation, funding, and schedule creation inside `createBatch()`.
 
-`token()`, `admin()`, and `nextScheduleId()` expose foundation configuration. Passing smoke tests establishes only configuration and explicit stub behavior; it does not prove vesting or rollback correctness.
+The beneficiary flow reads schedule IDs and claimable amounts, then calls `manager.claim(scheduleId)`. The contract always transfers claimed assets to the recorded beneficiary. A relayer or different wallet cannot redirect the payout.
 
 ## Local deployment
 
@@ -71,7 +80,9 @@ console.log(await token.getAddress());
 
 Exit the console, set `VESTA_TOKEN_ADDRESS` in `.env` to that local token address, then run `npm run deploy:local`. Restarting the local chain requires redeploying both contracts and updating the address.
 
-For a later Sepolia rehearsal, set `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `VESTA_TOKEN_ADDRESS` for that network, then run `npm run deploy:sepolia`. The script deploys only the manager; it does not deploy or fund the token. Validate the token address and network before deployment. The current skeleton is not ready for the MVP demonstration.
+To run the frontend, copy `frontend/.env.example` to `frontend/.env`, set `VITE_CHAIN_ID` and `VITE_VESTA_CONTRACT_ADDRESS`, then run `npm run dev` inside `frontend/`. The connected wallet must use the configured chain.
+
+For a Sepolia rehearsal, set `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `VESTA_TOKEN_ADDRESS` for that network, then run `npm run deploy:sepolia`. The script deploys only the manager; it does not deploy or fund the token. Validate the token address and network before deployment.
 
 ## Team responsibilities
 
@@ -87,4 +98,4 @@ These are peer responsibilities. Each contributor owns implementation and tests 
 
 ## Limitations
 
-This is an unaudited academic foundation and must not be used with real funds. Only a selected standard, non-rebasing, non-fee-on-transfer demo token is in scope. Gas savings and security properties require feature implementation and measurement; neither is established by the smoke tests.
+This is unaudited academic software and must not be used with real funds. Only a selected standard, non-rebasing, non-fee-on-transfer demo token is in scope. The tests cover the core invariants, but maximum-batch gas evidence, a live Sepolia rehearsal, frontend transaction tests, four-role authorization, and off-chain CRUD still require separate evidence before assignment submission.
