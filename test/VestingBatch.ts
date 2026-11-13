@@ -2,148 +2,308 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
-describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
-  async function deployVestingFixture() {
-    const [admin, beneficiary1, beneficiary2, unauthorized] =
+describe("VestingManager batch creation", function () {
+  async function deployFixture() {
+    const [admin, beneficiary1, beneficiary2, other] =
       await ethers.getSigners();
+    const token = await ethers.deployContract("MockERC20");
+    const manager = await ethers.deployContract("VestingManager", [
+      token.target,
+    ]);
+    const minted = ethers.parseEther("10000");
 
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
-    const token = await MockERC20.deploy();
-
-    const VestingManager = await ethers.getContractFactory("VestingManager");
-    const vestingManager = await VestingManager.deploy(
-      await token.getAddress(),
-    );
+    await token.mint(admin.address, minted);
 
     return {
-      vestingManager,
-      token,
       admin,
       beneficiary1,
       beneficiary2,
-      unauthorized,
+      other,
+      token,
+      manager,
+      minted,
     };
   }
 
-  describe("createBatch", function () {
-    it("Should successfully create a batch and pull exact funding", async function () {
-      const { vestingManager, token, admin, beneficiary1, beneficiary2 } =
-        await loadFixture(deployVestingFixture);
+  it("accepts a one-row batch and encodes no cliff as start", async function () {
+    const { admin, beneficiary1, token, manager } =
+      await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+    const allocation = 100n;
 
-      const allocations = [ethers.parseEther("100"), ethers.parseEther("200")];
-      const totalAllocation = allocations[0] + allocations[1];
+    await token.approve(manager.target, allocation);
+    await manager.createBatch(
+      token.target,
+      [beneficiary1.address],
+      [allocation],
+      [start],
+      [start],
+      [1_000],
+    );
 
-      const currentTime = await time.latest();
-      const starts = [currentTime + 1000, currentTime + 1000];
-      const cliffs = [86400, 86400];
-      const durations = [86400 * 30, 86400 * 30];
-
-      await token
-        .connect(admin)
-        .approve(await vestingManager.getAddress(), totalAllocation);
-
-      await expect(
-        vestingManager
-          .connect(admin)
-          .createBatch(
-            await token.getAddress(),
-            [beneficiary1.address, beneficiary2.address],
-            allocations,
-            starts,
-            cliffs,
-            durations,
-          ),
-      )
-        .to.emit(vestingManager, "BatchCreated")
-        .withArgs(admin.address, 2, totalAllocation)
-        .and.to.emit(vestingManager, "ScheduleCreated");
-
-      const contractBalance = await token.balanceOf(
-        await vestingManager.getAddress(),
-      );
-      expect(contractBalance).to.equal(totalAllocation);
-    });
-
-    it("Should revert atomically if arrays are mismatched", async function () {
-      const { vestingManager, token, admin, beneficiary1 } = await loadFixture(
-        deployVestingFixture,
-      );
-
-      await expect(
-        vestingManager
-          .connect(admin)
-          .createBatch(
-            await token.getAddress(),
-            [beneficiary1.address],
-            [ethers.parseEther("100"), ethers.parseEther("200")],
-            [0],
-            [0],
-            [0],
-          ),
-      ).to.be.revertedWithCustomError(vestingManager, "ArrayLengthMismatch");
-    });
+    const schedule = await manager.getSchedule(0);
+    expect(schedule.cliff).to.equal(BigInt(start));
+    expect(await manager.nextScheduleId()).to.equal(1n);
+    expect(await manager.getBeneficiarySchedules(beneficiary1.address)).to.eql([
+      0n,
+    ]);
+    expect(await token.balanceOf(manager.target)).to.equal(allocation);
+    expect(await token.balanceOf(admin.address)).to.equal(
+      ethers.parseEther("10000") - allocation,
+    );
   });
 
-  describe("updateScheduleTerms", function () {
-    it("Should allow admin to update cliff and duration before start time", async function () {
-      const { vestingManager, token, admin, beneficiary1 } = await loadFixture(
-        deployVestingFixture,
-      );
+  it("accepts a twenty-row batch", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+    const beneficiaries = Array(20).fill(beneficiary1.address);
+    const allocations = Array<bigint>(20).fill(1n);
+    const starts = Array<number>(20).fill(start);
+    const cliffs = Array<number>(20).fill(start);
+    const durations = Array<number>(20).fill(1_000);
 
-      const start = (await time.latest()) + 3600;
-      await token
-        .connect(admin)
-        .approve(await vestingManager.getAddress(), ethers.parseEther("100"));
-      await vestingManager
-        .connect(admin)
-        .createBatch(
-          await token.getAddress(),
-          [beneficiary1.address],
-          [ethers.parseEther("100")],
-          [start],
-          [1000],
-          [5000],
-        );
+    await token.approve(manager.target, 20n);
+    await manager.createBatch(
+      token.target,
+      beneficiaries,
+      allocations,
+      starts,
+      cliffs,
+      durations,
+    );
 
-      await expect(
-        vestingManager.connect(admin).updateScheduleTerms(0, 2000, 6000),
-      )
-        .to.emit(vestingManager, "ScheduleTermsUpdated")
-        .withArgs(0, 2000, 6000);
-    });
+    expect(await manager.nextScheduleId()).to.equal(20n);
+    expect(await manager.getBeneficiarySchedules(beneficiary1.address)).to.eql(
+      Array.from({ length: 20 }, (_, index) => BigInt(index)),
+    );
+    expect(await token.balanceOf(manager.target)).to.equal(20n);
   });
 
-  describe("cancelSchedule", function () {
-    it("Should logically delete the schedule and refund admin before start time", async function () {
-      const { vestingManager, token, admin, beneficiary1 } = await loadFixture(
-        deployVestingFixture,
-      );
+  it("rejects a twenty-one-row batch", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
 
-      const allocation = ethers.parseEther("100");
-      const start = (await time.latest()) + 3600;
+    await expect(
+      manager.createBatch(
+        token.target,
+        Array(21).fill(beneficiary1.address),
+        Array<bigint>(21).fill(1n),
+        Array<number>(21).fill(start),
+        Array<number>(21).fill(start),
+        Array<number>(21).fill(1_000),
+      ),
+    ).to.be.revertedWithCustomError(manager, "BatchTooLarge");
 
-      await token
-        .connect(admin)
-        .approve(await vestingManager.getAddress(), allocation);
-      await vestingManager
-        .connect(admin)
-        .createBatch(
-          await token.getAddress(),
-          [beneficiary1.address],
-          [allocation],
-          [start],
-          [1000],
-          [5000],
-        );
+    expect(await manager.nextScheduleId()).to.equal(0n);
+    expect(await token.balanceOf(manager.target)).to.equal(0n);
+  });
 
-      const adminBalanceBefore = await token.balanceOf(admin.address);
+  it("pulls funding once and emits the complete batch payload", async function () {
+    const { admin, beneficiary1, beneficiary2, token, manager } =
+      await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
 
-      await expect(vestingManager.connect(admin).cancelSchedule(0))
-        .to.emit(vestingManager, "ScheduleCancelled")
-        .withArgs(0, beneficiary1.address, allocation);
+    await token.approve(manager.target, 31n);
+    await manager.createBatch(
+      token.target,
+      [beneficiary1.address],
+      [7n],
+      [start],
+      [start],
+      [1_000],
+    );
 
-      const adminBalanceAfter = await token.balanceOf(admin.address);
-      expect(adminBalanceAfter - adminBalanceBefore).to.equal(allocation);
-    });
+    const transaction = await manager.createBatch(
+      token.target,
+      [beneficiary1.address, beneficiary2.address],
+      [11n, 13n],
+      [start, start],
+      [start, start],
+      [1_000, 1_000],
+    );
+
+    await expect(transaction)
+      .to.emit(manager, "BatchCreated")
+      .withArgs(admin.address, 1n, 2n, 24n);
+
+    const receipt = await transaction.wait();
+    const pulls = await token.queryFilter(
+      token.filters.Transfer(admin.address, manager.target),
+      receipt!.blockNumber,
+      receipt!.blockNumber,
+    );
+    expect(pulls).to.have.length(1);
+    const pull = pulls[0];
+    expect(pull).to.have.property("args");
+    if (!("args" in pull)) throw new Error("expected a decoded Transfer log");
+    expect(pull.args.value).to.equal(24n);
+  });
+
+  it("rolls back every row when a middle row is invalid", async function () {
+    const { admin, beneficiary1, beneficiary2, token, manager, minted } =
+      await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+
+    await token.approve(manager.target, 60n);
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address, ethers.ZeroAddress, beneficiary2.address],
+        [10n, 20n, 30n],
+        [start, start, start],
+        [start, start, start],
+        [1_000, 1_000, 1_000],
+      ),
+    ).to.be.revertedWithCustomError(manager, "InvalidBeneficiary");
+
+    expect(await manager.nextScheduleId()).to.equal(0n);
+    expect(await manager.getBeneficiarySchedules(beneficiary1.address)).to.eql(
+      [],
+    );
+    expect(await manager.getBeneficiarySchedules(beneficiary2.address)).to.eql(
+      [],
+    );
+    expect(await token.balanceOf(manager.target)).to.equal(0n);
+    expect(await token.balanceOf(admin.address)).to.equal(minted);
+  });
+
+  it("rolls back schedules when the admin cannot fund the batch", async function () {
+    const { admin, beneficiary1, token, manager, minted } =
+      await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+    const allocation = minted + 1n;
+
+    await token.approve(manager.target, allocation);
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address],
+        [allocation],
+        [start],
+        [start],
+        [1_000],
+      ),
+    ).to.be.revertedWithCustomError(token, "ERC20InsufficientBalance");
+
+    expect(await manager.nextScheduleId()).to.equal(0n);
+    expect(await manager.getBeneficiarySchedules(beneficiary1.address)).to.eql(
+      [],
+    );
+    expect(await token.balanceOf(manager.target)).to.equal(0n);
+    expect(await token.balanceOf(admin.address)).to.equal(minted);
+  });
+
+  it("rolls back when a token delivers less than the requested funding", async function () {
+    const [admin, beneficiary] = await ethers.getSigners();
+    const token = await ethers.deployContract("FeeOnTransferMockERC20");
+    const manager = await ethers.deployContract("VestingManager", [
+      token.target,
+    ]);
+    const start = (await time.latest()) + 1_000;
+
+    await token.mint(admin.address, 100n);
+    await token.approve(manager.target, 100n);
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary.address],
+        [100n],
+        [start],
+        [start],
+        [1_000],
+      ),
+    )
+      .to.be.revertedWithCustomError(manager, "IncorrectReceivedFunding")
+      .withArgs(100n, 99n);
+
+    expect(await manager.nextScheduleId()).to.equal(0n);
+    expect(await manager.getBeneficiarySchedules(beneficiary.address)).to.eql(
+      [],
+    );
+    expect(await token.balanceOf(manager.target)).to.equal(0n);
+    expect(await token.balanceOf(admin.address)).to.equal(100n);
+  });
+
+  it("rejects batch creation from a non-admin wallet", async function () {
+    const { beneficiary1, other, token, manager } =
+      await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+    const createBatch = manager.connect(other).getFunction("createBatch");
+
+    await expect(
+      createBatch(
+        token.target,
+        [beneficiary1.address],
+        [1n],
+        [start],
+        [start],
+        [1_000],
+      ),
+    ).to.be.revertedWithCustomError(manager, "Unauthorized");
+  });
+
+  it("rejects relative cliff values", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address],
+        [1n],
+        [start],
+        [100],
+        [1_000],
+      ),
+    ).to.be.revertedWithCustomError(manager, "InvalidScheduleTerms");
+  });
+
+  it("rejects a cliff after the vesting end", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address],
+        [1n],
+        [start],
+        [start + 1_001],
+        [1_000],
+      ),
+    ).to.be.revertedWithCustomError(manager, "InvalidScheduleTerms");
+  });
+
+  it("rejects a zero start", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address],
+        [1n],
+        [0],
+        [0],
+        [1_000],
+      ),
+    ).to.be.revertedWithCustomError(manager, "InvalidScheduleTerms");
+  });
+
+  it("rejects a zero duration", async function () {
+    const { beneficiary1, token, manager } = await loadFixture(deployFixture);
+    const start = (await time.latest()) + 1_000;
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary1.address],
+        [1n],
+        [start],
+        [start],
+        [0],
+      ),
+    ).to.be.revertedWithCustomError(manager, "InvalidScheduleTerms");
   });
 });

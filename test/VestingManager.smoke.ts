@@ -1,25 +1,33 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
-describe("VestingManager foundation", function () {
-  // This test protects the deployment seam. It does not test vesting behavior.
+describe("VestingManager deployment", function () {
   it("stores the configured token and deployer as admin", async function () {
     const [deployer] = await ethers.getSigners();
     const token = await ethers.deployContract("MockERC20");
-    const manager = await ethers.deployContract("VestingManager", [token.target]);
+    const manager = await ethers.deployContract("VestingManager", [
+      token.target,
+    ]);
 
     expect(await manager.token()).to.equal(token.target);
     expect(await manager.admin()).to.equal(deployer.address);
     expect(await manager.nextScheduleId()).to.equal(0n);
   });
 
-  // This test prevents unfinished paths from looking like working MVP behavior.
-  it("exposes the stable contract seam without pre-implementing teammate behavior", async function () {
-    const token = await ethers.deployContract("MockERC20");
-    const manager = await ethers.deployContract("VestingManager", [token.target]);
+  it("rejects the zero token address", async function () {
+    const factory = await ethers.getContractFactory("VestingManager");
 
-    await expect(
-      manager.createBatch(token.target, [], [], [], [], [])
-    ).to.be.revertedWithCustomError(manager, "NotImplemented");
+    await expect(factory.deploy(ethers.ZeroAddress))
+      .to.be.revertedWithCustomError(factory, "InvalidToken")
+      .withArgs(ethers.ZeroAddress);
+  });
+
+  it("rejects a token address without contract code", async function () {
+    const [, account] = await ethers.getSigners();
+    const factory = await ethers.getContractFactory("VestingManager");
+
+    await expect(factory.deploy(account.address))
+      .to.be.revertedWithCustomError(factory, "InvalidToken")
+      .withArgs(account.address);
   });
 });
