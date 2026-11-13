@@ -4,12 +4,17 @@ import { motion } from 'motion/react'
 import metamaskFox from '../assets/metamask-fox.svg'
 import { Button } from './ui/Button'
 import { useWallet } from '../features/wallet/useWallet'
+import { getVestaContractAddress } from '../features/vesting'
 
 export function WalletConnectModal({ onClose }: { onClose: () => void }) {
   const { connect, error, status } = useWallet()
   const isConnecting = status === 'connecting'
-  const contractAddress =
-    import.meta.env.VITE_CONTRACT_ADDRESS || '0x987BA...L0D'
+  let contractAddress = 'Not configured'
+  try {
+    contractAddress = getVestaContractAddress()
+  } catch {
+    // The load/write views surface the full configuration error.
+  }
 
   useEffect(() => {
     if (status === 'connected') onClose()

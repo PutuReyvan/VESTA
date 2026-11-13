@@ -12,3 +12,4 @@ export const motionSprings = {
 
 export const motionEase = [0.22, 1, 0.36, 1] as const
 export const motionStagger = 0.04
+export const motionStaggerCap = 0.24

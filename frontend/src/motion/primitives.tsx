@@ -6,7 +6,7 @@ import {
   useTransform,
   type HTMLMotionProps,
 } from 'motion/react'
-import type { ReactNode } from 'react'
+import { Children, type ReactNode } from 'react'
 import { fade, fadeUp, presenceFade, staggerContainer } from './variants'
 import { motionSprings } from './tokens'
 import { useEffect } from 'react'
@@ -41,7 +41,7 @@ export function Stagger({
   return (
     <motion.div
       className={className}
-      variants={staggerContainer}
+      variants={staggerContainer(Children.count(children))}
       initial="hidden"
       animate="visible"
     >

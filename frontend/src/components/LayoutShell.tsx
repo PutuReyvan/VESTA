@@ -1,10 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { AppRoute } from '../types/app'
 import { WalletButton } from './WalletButton'
 import { Logo } from './ui/Logo'
 import { NetworkGuard } from './NetworkGuard'
 import {
-  IconDots,
   IconLayoutSidebar,
   IconPlus,
   IconUser,
@@ -12,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { useWallet } from '../features/wallet/useWallet'
 import { AnimatePresence, motion } from 'motion/react'
+import { loadVestingAccess } from '../features/vesting'
 
 export function LayoutShell({
   route,
@@ -24,6 +24,27 @@ export function LayoutShell({
 }) {
   const { account, status } = useWallet()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [access, setAccess] = useState<{ account: string; isAdmin: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!account || status !== 'connected') return
+
+    let cancelled = false
+    loadVestingAccess(account)
+      .then((access) => {
+        if (!cancelled) setAccess({ account, isAdmin: access.isAdmin })
+      })
+      .catch(() => {
+        if (!cancelled) setAccess({ account, isAdmin: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [account, status])
+
+  const isAdmin = Boolean(
+    account && status === 'connected' && access?.account === account && access.isAdmin,
+  )
 
   return (
     <div className="app-shell">
@@ -43,13 +64,13 @@ export function LayoutShell({
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             className="sidebar-action"
-            key={account ? 'create-batch' : 'connect-wallet'}
+            key={account && isAdmin ? 'create-batch' : 'wallet'}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.18 }}
           >
-            {account ? (
+            {account && isAdmin ? (
               <button className="button button-primary" onClick={() => onNavigate('create-batch')}>
                 <IconPlus size={18} stroke={2} />
                 Create Batch
@@ -76,13 +97,6 @@ export function LayoutShell({
             <IconUsers size={19} stroke={1.8} /> <span>My Vesting</span>
           </button>
         </nav>
-        {import.meta.env.DEV && (
-          <div className="preview-nav">
-            <p className="sidebar-heading">Preview pages</p>
-            <button onClick={() => onNavigate('login')}>Login</button>
-            <button onClick={() => onNavigate('sign-up')}>Sign Up</button>
-          </div>
-        )}
         <div className="sidebar-footer">
           <motion.div
             className="network-badge"
@@ -91,17 +105,15 @@ export function LayoutShell({
             }}
             transition={{ duration: 0.2 }}
           >
-            <span>Sepolia</span><small>0x98AB...62JKL</small>
+            <span>{status === 'wrong-network' ? 'Wrong network' : 'Wallet network'}</span>
+            <small>{account ? shortAddress(account) : 'Disconnected'}</small>
           </motion.div>
           <div className="profile-card">
-            <div className="avatar">L</div>
+            <div className="avatar">{account ? account.slice(2, 4).toUpperCase() : 'V'}</div>
             <div>
-              <strong>Leonardo</strong>
-              <small>le1e02@gmail.com</small>
+              <strong>{account ? shortAddress(account) : 'Wallet not connected'}</strong>
+              <small>{account ? isAdmin ? 'On-chain admin' : 'Connected wallet' : 'Connect to continue'}</small>
             </div>
-            <span className="profile-menu">
-              <IconDots size={20} stroke={2} />
-            </span>
           </div>
         </div>
       </aside>
@@ -111,4 +123,8 @@ export function LayoutShell({
       </main>
     </div>
   )
+}
+
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }

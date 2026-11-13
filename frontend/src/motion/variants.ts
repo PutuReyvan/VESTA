@@ -1,5 +1,5 @@
 import type { Variants } from 'motion/react'
-import { motionDurations, motionEase, motionStagger } from './tokens'
+import { motionDurations, motionEase, motionStagger, motionStaggerCap } from './tokens'
 
 export const fade: Variants = {
   hidden: { opacity: 0 },
@@ -27,11 +27,16 @@ export const scaleIn: Variants = {
   },
 }
 
-export const staggerContainer: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: motionStagger },
-  },
+export function staggerContainer(itemCount: number): Variants {
+  const intervals = Math.max(itemCount - 1, 1)
+  return {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: Math.min(motionStagger, motionStaggerCap / intervals),
+      },
+    },
+  }
 }
 
 export const presenceFade: Variants = {
