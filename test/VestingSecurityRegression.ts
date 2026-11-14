@@ -196,4 +196,28 @@ describe("VestingManager security regressions", function () {
     expect(await token.balanceOf(beneficiary.address)).to.equal(allocation);
     expect((await manager.getSchedule(1)).released).to.equal(allocation);
   });
+
+  it("rolls back when a token returns false from transferFrom", async function () {
+    const [, beneficiary] = await ethers.getSigners();
+    const token = await ethers.deployContract("FalseReturnToken");
+    const manager = await ethers.deployContract("VestingManager", [token.target]);
+    const allocation = ethers.parseEther("10");
+    const start = BigInt((await time.latest()) + 10);
+
+    await expect(
+      manager.createBatch(
+        token.target,
+        [beneficiary.address],
+        [allocation],
+        [start],
+        [0],
+        [10],
+      ),
+    ).to.be.reverted;
+
+    expect(await manager.nextScheduleId()).to.equal(1n);
+    expect(await manager.getBeneficiarySchedules(beneficiary.address)).to.deep.equal(
+      [],
+    );
+  });
 });
