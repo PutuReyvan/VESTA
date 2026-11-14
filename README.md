@@ -43,6 +43,18 @@ An environment file is unnecessary for compilation and local tests. For deployme
 
 Generated artifacts, dependencies, local planning documents, and agent instructions are not versioned.
 
+## Off-chain authentication and data boundary
+
+The Supabase migration at [`supabase/migrations/001_offchain_auth.sql`](supabase/migrations/001_offchain_auth.sql) creates:
+
+- `recipient_profiles` for CRUD metadata only (display name, employee reference, and application metadata).
+- `user_roles` for wallet-to-role mappings: `company_admin`, `hr_operator`, `employee`, and `auditor`.
+- `auth_nonces` for short-lived, one-time wallet sign-in challenges.
+
+`src/offchain/` provides the framework-independent service surface for the frontend/API team. `WalletAuthService` creates a nonce challenge, verifies the wallet signature, consumes the nonce, loads current roles, and issues an HMAC-signed session. `OffchainService` exposes profile and role operations. Apply RLS policies and use the Supabase service-role key only on a trusted server; never ship it to a browser.
+
+The contract boundary is intentional: allocation, released, vested, claimable, beneficiary schedule IDs, and schedule status are never stored in Postgres. `ContractDataService` reads those values from `VestingManager` using the configured RPC URL and manager address. Database rows can describe a recipient and authorize an application action, but they cannot be used as token balances or vesting truth. A UI should combine `OffchainService` profile/role results with `ContractDataService` reads and should submit claims/transactions through the wallet.
+
 ## Contract flow
 
 The target admin flow is `token.approve(manager, total)` when needed, followed by `manager.createBatch(...)`. The target beneficiary flow reads schedules and available amounts, then calls `manager.claim(scheduleId)`. These features remain stubs.
