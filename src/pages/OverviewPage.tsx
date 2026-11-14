@@ -15,9 +15,17 @@ import {
   managerAddress,
   readSchedule,
   tokenAddress,
+  deploymentBlock,
 } from '../features/vesting/contract'
 
 type LoadedSchedule = ContractSchedule & { vested: bigint; claimable: bigint }
+type BatchHistory = {
+  txHash: string
+  blockNumber: number
+  admin: string
+  scheduleCount: bigint
+  totalAllocation: bigint
+}
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -29,7 +37,7 @@ export function OverviewPage() {
   const [decimals, setDecimals] = useState(18)
   const [managerAdmin, setManagerAdmin] = useState<string | null>(null)
   const [managerBalance, setManagerBalance] = useState<bigint>(0n)
-  const [batchCount, setBatchCount] = useState<number | null>(null)
+  const [batchHistory, setBatchHistory] = useState<BatchHistory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
@@ -42,7 +50,7 @@ export function OverviewPage() {
         setSchedules([])
         setManagerAdmin(null)
         setManagerBalance(0n)
-        setBatchCount(null)
+        setBatchHistory([])
         return
       }
 
@@ -69,9 +77,16 @@ export function OverviewPage() {
           })),
         ))
 
-        let batches: number | null = null
+        let history: BatchHistory[] = []
         try {
-          batches = (await manager.queryFilter(manager.filters.BatchCreated())).length
+          const logs = await manager.queryFilter(manager.filters.BatchCreated(), deploymentBlock)
+          history = logs.map((log) => ({
+            txHash: log.transactionHash,
+            blockNumber: log.blockNumber,
+            admin: String(log.args?.[0] ?? ''),
+            scheduleCount: BigInt(log.args?.[1] ?? 0),
+            totalAllocation: BigInt(log.args?.[2] ?? 0),
+          })).reverse()
         } catch {
           // Some public RPC endpoints restrict historical log queries. Schedule
           // data remains authoritative when this count is unavailable.
@@ -81,7 +96,7 @@ export function OverviewPage() {
         setDecimals(Number(tokenDecimals))
         setManagerAdmin(admin)
         setManagerBalance(BigInt(balance))
-        setBatchCount(batches)
+        setBatchHistory(history)
         setSchedules(loaded)
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Failed to read the Sepolia contract.')
@@ -115,7 +130,7 @@ export function OverviewPage() {
         <StatCard label="Locked In Contract" value={formatTokenAmount(managerBalance, decimals)} icon={<IconLock size={17} stroke={1.8} />} />
         <StatCard label="Total Released" value={formatTokenAmount(totalReleased, decimals)} icon={<IconCash size={17} stroke={1.8} />} />
         <StatCard label="Schedules" value={String(schedules.length)} icon={<IconCalendar size={17} stroke={1.8} />} />
-        <StatCard label="Batches" value={batchCount === null ? '—' : String(batchCount)} icon={<IconUsers size={17} stroke={1.8} />} />
+        <StatCard label="Batches" value={String(batchHistory.length)} icon={<IconUsers size={17} stroke={1.8} />} />
       </Stagger>
       <Reveal>
         <Card>
@@ -139,6 +154,26 @@ export function OverviewPage() {
           })}
           </Stagger>
         </div>
+        </Card>
+      </Reveal>
+      <Reveal>
+        <Card>
+          <h2>Batch History</h2>
+          <div className="table">
+            <div className="table-row batch-history-row table-header">
+              <span>Block</span><span>Schedules</span><span>Allocation</span><span>Admin</span><span>Transaction</span>
+            </div>
+            {batchHistory.length === 0 && !loading && <p className="muted">No batch events found on this deployment.</p>}
+            {batchHistory.map((batch) => (
+              <div className="table-row batch-history-row" key={batch.txHash}>
+                <span>{batch.blockNumber}</span>
+                <span>{batch.scheduleCount.toString()}</span>
+                <span>{formatTokenAmount(batch.totalAllocation, decimals)}</span>
+                <span>{shortenAddress(batch.admin)}</span>
+                <a href={`https://sepolia.etherscan.io/tx/${batch.txHash}`} target="_blank" rel="noreferrer">View transaction</a>
+              </div>
+            ))}
+          </div>
         </Card>
       </Reveal>
     </PageFrame>

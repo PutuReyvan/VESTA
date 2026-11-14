@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
-import { IconArrowLeft, IconCheck, IconCircleCheck, IconPlus, IconScale, IconWallet } from '@tabler/icons-react'
+import { IconArrowLeft, IconCheck, IconCircleCheck, IconPlus, IconScale, IconTrash, IconWallet } from '@tabler/icons-react'
 import { useWallet } from '../features/wallet/useWallet'
 import {
   formatTokenAmount,
@@ -51,6 +51,7 @@ export function CreateBatchPage() {
   const [action, setAction] = useState<'idle' | 'approving' | 'creating'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
+  const [confirmed, setConfirmed] = useState(false)
   const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export function CreateBatchPage() {
   }
 
   function buildPayload() {
+    if (effectiveRows.length === 0 || effectiveRows.length > 20) throw new Error('A batch must contain between 1 and 20 schedules.')
     if (!totalAllocation || totalAllocation <= 0n) throw new Error('Total allocation must be greater than zero.')
     if (totalAllocation > balance) throw new Error('The admin wallet does not have enough VESTA tokens.')
 
@@ -141,11 +143,13 @@ export function CreateBatchPage() {
     setAction('approving')
     setError(null)
     setTxHash(null)
+    setConfirmed(false)
     try {
       const token = getTokenContract(await getSigner())
       const transaction = await token.approve(managerAddress, totalAllocation)
       setTxHash(transaction.hash)
       await transaction.wait()
+      setConfirmed(true)
       setRefresh((current) => current + 1)
     } catch (approvalError) {
       setError(approvalError instanceof Error ? approvalError.message : 'Token approval failed.')
@@ -158,6 +162,7 @@ export function CreateBatchPage() {
     setAction('creating')
     setError(null)
     setTxHash(null)
+    setConfirmed(false)
     try {
       const payload = buildPayload()
       const manager = getManagerContract(await getSigner())
@@ -171,6 +176,7 @@ export function CreateBatchPage() {
       )
       setTxHash(transaction.hash)
       await transaction.wait()
+      setConfirmed(true)
       setRefresh((current) => current + 1)
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Create batch transaction failed.')
@@ -186,9 +192,10 @@ export function CreateBatchPage() {
       <p className="contract-line">Manager: {managerAddress || 'VITE_CONTRACT_ADDRESS missing'}</p>
       <p className="contract-line">Token: {tokenAddress || 'VITE_TOKEN_ADDRESS missing'}</p>
       <p className="contract-line">On-chain admin: {managerAdmin || 'Loading...'} · {isAdmin ? 'This wallet can create batches' : 'This wallet cannot create batches'}</p>
+      <p className="contract-line">Every valid row is funded and created together. If any row fails, the batch reverts.</p>
       {loading && <p className="muted">Reading token balance and allowance...</p>}
       {error && <p className="modal-error" role="alert">{error}</p>}
-      {txHash && <p className="contract-line">Transaction: {txHash}</p>}
+      {txHash && <p className="contract-line">{confirmed ? 'Confirmed transaction: ' : 'Pending transaction: '}<a href={`https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noreferrer">View on Sepolia Etherscan</a></p>}
       <div className="stepper">
         <span className={needsApproval ? 'step active' : 'step'}>Approve Token</span>
         <span className="step-dots">••••</span>
@@ -215,6 +222,9 @@ export function CreateBatchPage() {
               <input value={row.start} onChange={(event) => updateRow(index, 'start', event.target.value)} type="datetime-local" aria-label="Start" />
               <input value={row.durationDays} onChange={(event) => updateRow(index, 'durationDays', event.target.value)} type="number" min="1" placeholder="Duration days" aria-label="Duration in days" />
               <input value={row.cliffDays} onChange={(event) => updateRow(index, 'cliffDays', event.target.value)} type="number" min="0" placeholder="Cliff days" aria-label="Cliff in days" />
+              <button className="icon-button" type="button" aria-label={`Remove row ${index + 1}`} disabled={effectiveRows.length === 1} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
+                <IconTrash size={17} stroke={1.8} />
+              </button>
             </div>
           ))}
         </div>

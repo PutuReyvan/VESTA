@@ -31,6 +31,7 @@ const tokenAbi = [
 export const chainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111)
 export const managerAddress = import.meta.env.VITE_CONTRACT_ADDRESS || ''
 export const tokenAddress = import.meta.env.VITE_TOKEN_ADDRESS || ''
+export const deploymentBlock = Number(import.meta.env.VITE_DEPLOYMENT_BLOCK || 0)
 
 function getEthereum(): NonNullable<Window['ethereum']> {
   if (!window.ethereum || typeof window.ethereum.request !== 'function') {

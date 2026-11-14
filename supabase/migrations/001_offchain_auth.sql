@@ -43,6 +43,7 @@ as $$
 $$;
 
 revoke all on function public.has_role(public.application_role) from public;
+revoke execute on function public.has_role(public.application_role) from anon;
 grant execute on function public.has_role(public.application_role) to authenticated;
 
 alter table public.user_roles enable row level security;
@@ -84,9 +85,14 @@ create policy "operators delete profiles"
   using (public.has_role('company_admin')
     or public.has_role('hr_operator'));
 
+create policy "users can delete their own recipient profile"
+  on public.recipient_profiles for delete
+  using (user_id = auth.uid());
+
 create or replace function public.touch_recipient_profile()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();

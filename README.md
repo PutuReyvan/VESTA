@@ -4,7 +4,7 @@ An ERC-20 vesting project for a five-person university team. The differentiating
 
 ## Current status
 
-This repository contains the contract core, Supabase Web3 Auth data boundary, and Vite frontend foundation. Contract tests and frontend compilation are available. Supabase project configuration, seeded roles, live contract addresses, and end-to-end Sepolia demonstration remain deployment steps.
+This repository contains the implemented contract core, Supabase Web3 Auth/RLS boundary, and live Vite frontend flow. The local Sepolia demo has been deployed with a demo ERC-20, seeded `company_admin` role, and the approval → atomic batch → beneficiary claim path. Treat the deployment as an academic testnet instance, not a production deployment.
 
 ## MVP scope
 
@@ -47,6 +47,7 @@ npm run dev
 | `src/offchain/` | Shared off-chain types and data boundary |
 | `src/features/auth/` | Supabase Web3 Auth session and role state |
 | `src/features/wallet/` | Wallet connection and Sepolia network state |
+| `src/features/vesting/` | Browser provider, ABI, live reads, and transaction helpers |
 | `src/pages/` | Frontend screens |
 | `supabase/migrations/` | Auth-linked schema and RLS policies |
 | `scripts/deploy.ts` | Deploy the manager for a supplied ERC-20 address |

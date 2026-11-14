@@ -113,12 +113,17 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .stat-value.accent { color: var(--green); }
 .table { overflow-x: auto; }
 .table-row { display: grid; grid-template-columns: .5fr 1.4fr 1fr 1fr 1fr 1fr; gap: 14px; align-items: center; min-width: 650px; padding: 14px 8px; border-bottom: 1px solid var(--line); }
+.batch-history-row { grid-template-columns: .7fr .8fr 1fr 1.2fr 1.2fr; min-width: 700px; }
+.batch-history-row a { color: var(--blue); font-weight: 600; text-decoration: none; }
+.batch-history-row a:hover { text-decoration: underline; }
 .table-row:last-child { border-bottom: 0; }
 .table-header { color: var(--muted); background: var(--surface-subtle); border-radius: 6px; font-weight: 600; }
 .status-pill { display: inline-flex; align-items: center; justify-self: start; gap: 5px; padding: 7px 12px; border-radius: 18px; font-size: 14px; }
 .status-pill.active { color: #6baa12; background: var(--green-soft); }
 .status-pill.cliff { color: #c58f20; background: #fff1c8; }
 .vesting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.profile-form { display: grid; gap: 12px; max-width: 620px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag-row span { padding: 6px 12px; border-radius: 14px; color: var(--muted); background: var(--surface-subtle); }
 .progress-row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin: 24px 0; }
@@ -133,7 +138,7 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .batch-summary { grid-template-columns: repeat(3, 1fr); }
 .section-heading { display: flex; justify-content: space-between; align-items: center; }
 .batch-form { display: grid; gap: 12px; margin-bottom: 24px; }
-.batch-row { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 12px; }
+.batch-row { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr) auto; gap: 12px; align-items: center; }
 input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); transition: border-color .18s ease-out, box-shadow .18s ease-out; }
 input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(47, 152, 228, .14); }
 .auth-page { display: grid; grid-template-columns: 1.05fr .95fr; min-height: 100vh; margin: 12px; overflow: hidden; border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }

@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { StatCard } from '../components/ui/StatCard'
-import { IconCash, IconLock, IconHandStop } from '@tabler/icons-react'
+import { IconCash, IconDeviceFloppy, IconHandStop, IconLock, IconTrash } from '@tabler/icons-react'
 import { Stagger, StaggerItem } from '../motion/primitives'
 import { motion } from 'motion/react'
 import type { ContractSchedule } from '../offchain/types'
+import type { DatabaseClient, RecipientProfile } from '../offchain/types'
+import { OffchainService } from '../offchain/service'
+import { supabase } from '../features/auth/supabase'
+import { useAuth } from '../features/auth/useAuth'
 import { useWallet } from '../features/wallet/useWallet'
 import {
   formatTokenAmount,
@@ -26,6 +30,7 @@ function formatDate(timestamp: bigint) {
 
 export function VestingPage() {
   const { account } = useWallet()
+  const { user } = useAuth()
   const [schedules, setSchedules] = useState<LoadedSchedule[]>([])
   const [decimals, setDecimals] = useState(18)
   const [loading, setLoading] = useState(false)
@@ -33,6 +38,39 @@ export function VestingPage() {
   const [error, setError] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
+  const [profile, setProfile] = useState<RecipientProfile | null>(null)
+  const [displayName, setDisplayName] = useState('')
+  const [employeeReference, setEmployeeReference] = useState('')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!account || !user || !supabase) return
+    let cancelled = false
+
+    async function loadProfile() {
+      setProfileLoading(true)
+      setProfileError(null)
+      try {
+        const service = new OffchainService(supabase as unknown as DatabaseClient)
+        const loaded = await service.getProfile(account)
+        if (cancelled) return
+        setProfile(loaded)
+        setDisplayName(loaded?.displayName ?? '')
+        setEmployeeReference(loaded?.employeeReference ?? '')
+      } catch (loadError) {
+        if (!cancelled) setProfileError(loadError instanceof Error ? loadError.message : 'Failed to read recipient profile.')
+      } finally {
+        if (!cancelled) setProfileLoading(false)
+      }
+    }
+
+    void loadProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [account, user])
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +129,50 @@ export function VestingPage() {
     }
   }
 
+  async function saveProfile() {
+    if (!account || !user || !supabase) return
+    if (!displayName.trim()) {
+      setProfileError('Display name is required.')
+      return
+    }
+    setProfileSaving(true)
+    setProfileError(null)
+    try {
+      const service = new OffchainService(supabase as unknown as DatabaseClient)
+      const saved = await service.upsertProfile({
+        userId: user.id,
+        walletAddress: account,
+        displayName: displayName.trim(),
+        employeeReference: employeeReference.trim() || null,
+        metadata: profile?.metadata ?? {},
+      })
+      setProfile(saved)
+      setDisplayName(saved.displayName)
+      setEmployeeReference(saved.employeeReference ?? '')
+    } catch (saveError) {
+      setProfileError(saveError instanceof Error ? saveError.message : 'Failed to save recipient profile.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  async function deleteProfile() {
+    if (!profile || !supabase) return
+    setProfileSaving(true)
+    setProfileError(null)
+    try {
+      const service = new OffchainService(supabase as unknown as DatabaseClient)
+      await service.removeProfile(profile.userId)
+      setProfile(null)
+      setDisplayName('')
+      setEmployeeReference('')
+    } catch (deleteError) {
+      setProfileError(deleteError instanceof Error ? deleteError.message : 'Failed to delete recipient profile.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
   return (
     <div className="page-frame">
       <h1>My Vesting</h1>
@@ -99,6 +181,24 @@ export function VestingPage() {
       {!account && <p className="muted">Connect the beneficiary wallet to load schedules.</p>}
       {loading && <p className="muted">Reading live vesting data...</p>}
       {!loading && account && schedules.length === 0 && <p className="muted">No schedules are assigned to this wallet.</p>}
+      <Card>
+        <h2>Recipient Profile</h2>
+        <p className="contract-line">Off-chain metadata is stored in Supabase. Vesting balances and claims remain on-chain.</p>
+        {profileLoading && <p className="muted">Reading profile...</p>}
+        {profileError && <p className="modal-error" role="alert">{profileError}</p>}
+        {account && user && supabase ? (
+          <div className="profile-form">
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" aria-label="Display name" />
+            <input value={employeeReference} onChange={(event) => setEmployeeReference(event.target.value)} placeholder="Employee reference (optional)" aria-label="Employee reference" />
+            <div className="profile-actions">
+              <Button type="button" onClick={() => void saveProfile()} disabled={profileSaving} icon={<IconDeviceFloppy size={18} stroke={2} />}>
+                {profileSaving ? 'Saving...' : profile ? 'Update Profile' : 'Save Profile'}
+              </Button>
+              {profile && <Button type="button" variant="secondary" onClick={() => void deleteProfile()} disabled={profileSaving} icon={<IconTrash size={18} stroke={2} />}>Delete</Button>}
+            </div>
+          </div>
+        ) : <p className="muted">Login with the wallet to manage your profile.</p>}
+      </Card>
       <Stagger className="vesting-grid">
         {schedules.map((schedule) => {
           const status = getScheduleStatus(schedule, now)
