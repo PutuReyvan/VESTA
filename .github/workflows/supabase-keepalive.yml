@@ -1,0 +1,52 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    # GitHub may delay scheduled jobs. This is intentionally low-volume and
+    # only keeps the REST/Data API exercised; it is not a production monitor.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Read one RLS-protected row
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -n "${SUPABASE_URL}" || { echo "SUPABASE_URL secret is missing" >&2; exit 1; }
+          test -n "${SUPABASE_KEY}" || { echo "SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY secret is missing" >&2; exit 1; }
+
+          endpoint="${SUPABASE_URL%/}/rest/v1/recipient_profiles?select=user_id&limit=1"
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          status="$(curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --retry 3 \
+            --retry-delay 2 \
+            --max-time 20 \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            "$endpoint" \
+            --header "apikey: ${SUPABASE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_KEY}")" || true
+
+          if [[ "$status" != "200" ]]; then
+            echo "Supabase REST request failed with HTTP ${status:-unknown}" >&2
+            cat "$response_file" >&2
+            exit 1
+          fi
+
+          echo "Supabase REST/Data API responded successfully at $(date -u +%Y-%m-%dT%H:%M:%SZ)."

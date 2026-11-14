@@ -63,6 +63,15 @@ Allocation, released, vested, claimable, beneficiary schedule IDs, and schedule 
 
 The first wallet sign-in opens the recipient profile form so the user can save a display name. Schedule IDs on the current deployment start at 1. Contract and token addresses are loaded from environment variables and shortened in the UI; they are never embedded as frontend constants.
 
+## Supabase keepalive
+
+`.github/workflows/supabase-keepalive.yml` performs a small read-only REST request every 30 minutes. Configure these GitHub repository secrets before enabling it:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY` (or legacy `SUPABASE_ANON_KEY`)
+
+The workflow never uses the service-role key and does not write data. Scheduled GitHub jobs can be delayed or disabled by GitHub, and this workflow is not a guarantee against provider-level pausing or plan limits.
+
 ## Deployment
 
 Sepolia hosts the smart contracts only. Deploy an approved demo ERC-20 first, then set `VESTA_TOKEN_ADDRESS` and run:
