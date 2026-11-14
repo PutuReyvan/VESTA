@@ -7,134 +7,233 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title VESTA Vesting Manager
-/// @notice Foundation contract for one-token, one-admin vesting deployments.
-/// @dev This file intentionally contains seams and explicit stubs. Members 2 and 3
-///      replace the stubs with tested behavior without changing the public interface casually.
 contract VestingManager is IVestingManager, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     mapping(uint256 => Schedule) internal schedules;
     mapping(address => uint256[]) internal beneficiaryScheduleIds;
 
-    /// @notice Temporary foundation error so unfinished paths fail visibly.
-    error NotImplemented();
-    error InvalidScheduleId(uint256 scheduleId);
-    error Unauthorized();
-    error NothingToClaim();
-
-    event Claimed
-    (
-        uint256 indexed scheduleId,
-        address indexed beneficiary,
-        uint256 amount
-    );
-
-    /// @notice ERC-20 configured for this deployment; never changes after construction.
     address public immutable override token;
-
-    /// @notice Organization/admin wallet for batch creation.
     address public immutable override admin;
-
-    /// @notice Next schedule ID. Member 2/3 increment it when schedules are created.
     uint256 public override nextScheduleId;
 
-    /// @param tokenAddress The one ERC-20 accepted by this deployment.
     constructor(address tokenAddress) {
         token = tokenAddress;
         admin = msg.sender;
     }
 
-    // Member 3 owns batch creation and its validation, funding, events, and rollback tests.
-    // Expected caller flow: token.approve(address(this), total) -> createBatch(...).
+    // =========================================================================
+    // ATOMIC BATCH & ON-CHAIN LIFECYCLE
+    // =========================================================================
+
     function createBatch(
-        address,
-        address[] calldata,
-        uint256[] calldata,
-        uint64[] calldata,
-        uint64[] calldata,
-        uint64[] calldata
-    ) external pure override {
-        revert NotImplemented();
+        address tokenAddress,
+        address[] calldata beneficiaries,
+        uint256[] calldata allocations,
+        uint64[] calldata starts,
+        uint64[] calldata cliffs,
+        uint64[] calldata durations
+    ) external override {
+        if (msg.sender != admin) revert Unauthorized();
+        if (tokenAddress != token) revert InvalidToken(tokenAddress, token);
+
+        uint256 count = beneficiaries.length;
+        if (count == 0) revert EmptyBatch();
+        if (
+            allocations.length != count ||
+            starts.length != count ||
+            cliffs.length != count ||
+            durations.length != count
+        ) {
+            revert ArrayLengthMismatch();
+        }
+
+        uint256 totalAllocation = 0;
+        uint256 currentId = nextScheduleId;
+
+        for (uint256 i = 0; i < count; ++i) {
+            address beneficiary = beneficiaries[i];
+            uint256 allocation = allocations[i];
+            uint64 start = starts[i];
+            uint64 cliff = cliffs[i];
+            uint64 duration = durations[i];
+
+            if (beneficiary == address(0)) revert InvalidBeneficiary();
+            if (allocation == 0) revert InvalidAllocation();
+            if (duration == 0 || cliff > duration)
+                revert InvalidScheduleTerms(cliff, duration);
+            if (uint256(start) + uint256(duration) > type(uint64).max)
+                revert InvalidScheduleTerms(cliff, duration);
+
+            totalAllocation += allocation;
+            uint256 scheduleId = currentId++;
+
+            schedules[scheduleId] = Schedule({
+                scheduleId: scheduleId,
+                beneficiary: beneficiary,
+                allocation: allocation,
+                start: start,
+                cliff: cliff,
+                duration: duration,
+                released: 0
+            });
+            beneficiaryScheduleIds[beneficiary].push(scheduleId);
+
+            emit ScheduleCreated(
+                scheduleId,
+                beneficiary,
+                allocation,
+                start,
+                cliff,
+                duration
+            );
+        }
+
+        nextScheduleId = currentId;
+
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        IERC20(token).safeTransferFrom(
+            msg.sender,
+            address(this),
+            totalAllocation
+        );
+        uint256 received = IERC20(token).balanceOf(address(this)) -
+            balanceBefore;
+        if (received != totalAllocation) revert InvalidAllocation();
+
+        emit BatchCreated(msg.sender, count, totalAllocation);
     }
 
-    // Members 2 and 3 own schedule storage, vesting math, and claim behavior.
-    // Frontend read flow: getBeneficiarySchedules(account) -> getSchedule(id)
-    // -> vestedAmount(id) -> claimableAmount(id).
-    function getSchedule(uint256 scheduleId) external view override returns (Schedule memory) {
+    function updateScheduleTerms(
+        uint256 scheduleId,
+        uint64 newCliff,
+        uint64 newDuration
+    ) external override {
+        if (msg.sender != admin) revert Unauthorized();
+
+        Schedule storage schedule = schedules[scheduleId];
+        if (schedule.beneficiary == address(0))
+            revert ScheduleNotFound(scheduleId);
+        if (schedule.allocation == 0)
+            revert ScheduleAlreadyCancelled(scheduleId);
+        if (block.timestamp >= schedule.start)
+            revert ScheduleAlreadyStarted(
+                scheduleId,
+                schedule.start,
+                block.timestamp
+            );
+        if (newDuration == 0 || newCliff > newDuration)
+            revert InvalidScheduleTerms(newCliff, newDuration);
+        if (uint256(schedule.start) + uint256(newDuration) > type(uint64).max)
+            revert InvalidScheduleTerms(newCliff, newDuration);
+
+        schedule.cliff = newCliff;
+        schedule.duration = newDuration;
+
+        emit ScheduleTermsUpdated(scheduleId, newCliff, newDuration);
+    }
+
+    function cancelSchedule(uint256 scheduleId) external override {
+        if (msg.sender != admin) revert Unauthorized();
+
+        Schedule storage schedule = schedules[scheduleId];
+        if (schedule.beneficiary == address(0))
+            revert ScheduleNotFound(scheduleId);
+
+        uint256 refundAmount = schedule.allocation;
+        if (refundAmount == 0) revert ScheduleAlreadyCancelled(scheduleId);
+        if (block.timestamp >= schedule.start)
+            revert ScheduleAlreadyStarted(
+                scheduleId,
+                schedule.start,
+                block.timestamp
+            );
+
+        schedule.allocation = 0;
+
+        IERC20(token).safeTransfer(admin, refundAmount);
+
+        emit ScheduleCancelled(scheduleId, schedule.beneficiary, refundAmount);
+    }
+
+    // =========================================================================
+    // VESTING CORE MATH
+    // =========================================================================
+
+    function getSchedule(
+        uint256 scheduleId
+    ) external view override returns (Schedule memory) {
         return _getSchedule(scheduleId);
     }
 
-    function _getSchedule(uint256 scheduleId) internal view returns (Schedule storage schedule)
-    {
-        if(scheduleId >= nextScheduleId)
-        {
+    function _getSchedule(
+        uint256 scheduleId
+    ) internal view returns (Schedule storage schedule) {
+        if (scheduleId >= nextScheduleId) {
             revert InvalidScheduleId(scheduleId);
         }
-
         schedule = schedules[scheduleId];
     }
 
-    function getBeneficiarySchedules(address beneficiary) external view override returns (uint256[] memory) {
+    function getBeneficiarySchedules(
+        address beneficiary
+    ) external view override returns (uint256[] memory) {
         return beneficiaryScheduleIds[beneficiary];
     }
 
-    function vestedAmount(uint256 scheduleId) public view override returns (uint256) {
+    function vestedAmount(
+        uint256 scheduleId
+    ) public view override returns (uint256) {
         return _vestedAmount(_getSchedule(scheduleId));
     }
 
-    function _vestedAmount(Schedule storage schedule) internal view returns (uint256)
-    {
+    function _vestedAmount(
+        Schedule storage schedule
+    ) internal view returns (uint256) {
         uint256 start = uint256(schedule.start);
         uint256 cliffEnd = start + uint256(schedule.cliff);
         uint vestingEnd = start + uint256(schedule.duration);
         uint256 nowTime = block.timestamp;
 
-        if(nowTime < start || nowTime < cliffEnd)
-        {
+        if (nowTime < start || nowTime < cliffEnd) {
             return 0;
         }
 
-        if(nowTime >= vestingEnd)
-        {
+        if (nowTime >= vestingEnd) {
             return schedule.allocation;
         }
 
         uint256 elapsed = nowTime - start;
-
         return (schedule.allocation * elapsed) / uint256(schedule.duration);
     }
 
-    function claimableAmount(uint256 scheduleId) public view override returns (uint256) {
+    function claimableAmount(
+        uint256 scheduleId
+    ) public view override returns (uint256) {
         Schedule storage schedule = _getSchedule(scheduleId);
         uint256 vested = _vestedAmount(schedule);
 
-        if(vested <= schedule.released)
-        {
+        if (vested <= schedule.released) {
             return 0;
         }
-
         return vested - schedule.released;
     }
 
-    function claim(uint256 scheduleId) external override nonReentrant{
+    function claim(uint256 scheduleId) external override nonReentrant {
         Schedule storage schedule = _getSchedule(scheduleId);
 
-        if(msg.sender != schedule.beneficiary)
-        {
+        if (msg.sender != schedule.beneficiary) {
             revert Unauthorized();
         }
 
         uint256 amount = claimableAmount(scheduleId);
 
-        if(amount == 0)
-        {
+        if (amount == 0) {
             revert NothingToClaim();
         }
 
         schedule.released += amount;
-
         IERC20(token).safeTransfer(schedule.beneficiary, amount);
-
         emit Claimed(scheduleId, schedule.beneficiary, amount);
     }
 }
