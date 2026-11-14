@@ -17,7 +17,6 @@ interface IVestingManager {
     // =========================================================================
 
     // Shared
-    error NotImplemented();
     error Unauthorized();
     error InvalidScheduleId(uint256 scheduleId);
     error NothingToClaim();
