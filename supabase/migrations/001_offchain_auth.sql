@@ -106,9 +106,10 @@ create policy "operators update profiles"
   with check (public.has_role('company_admin')
     or public.has_role('hr_operator'));
 
-create policy "company admins delete profiles"
+create policy "operators delete profiles"
   on public.recipient_profiles for delete
-  using (public.has_role('company_admin'));
+  using (public.has_role('company_admin')
+    or public.has_role('hr_operator'));
 
 create policy "wallet can read its nonce"
   on public.auth_nonces for select

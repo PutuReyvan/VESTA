@@ -24,7 +24,14 @@ export class OffchainService {
     this.contract = new ContractDataService(options.rpcUrl, options.managerAddress);
   }
 
-  async listProfiles(): Promise<RecipientProfile[]> {
+  async listProfiles(
+    session: Omit<WalletSession, "token">,
+  ): Promise<RecipientProfile[]> {
+    await this.auth.requireAnyRole(session, [
+      "company_admin",
+      "hr_operator",
+      "auditor",
+    ]);
     const { data, error } = await this.database
       .from("recipient_profiles")
       .select("wallet_address, display_name, employee_reference, metadata")
@@ -38,11 +45,23 @@ export class OffchainService {
     }));
   }
 
-  async getProfile(walletAddress: string): Promise<RecipientProfile | null> {
+  async getProfile(
+    session: Omit<WalletSession, "token">,
+    walletAddress: string,
+  ): Promise<RecipientProfile | null> {
+    const requestedWallet = wallet(walletAddress);
+    if (wallet(session.walletAddress) !== requestedWallet) {
+      await this.auth.requireAnyRole(session, [
+        "company_admin",
+        "hr_operator",
+        "auditor",
+      ]);
+    }
+
     const { data, error } = await this.database
       .from("recipient_profiles")
       .select("wallet_address, display_name, employee_reference, metadata")
-      .eq("wallet_address", wallet(walletAddress))
+      .eq("wallet_address", requestedWallet)
       .maybeSingle();
     if (error) throw new Error(`Unable to read recipient profile: ${error.message}`);
     return data ? {
