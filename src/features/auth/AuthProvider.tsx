@@ -110,6 +110,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setError(signInError.message);
         throw signInError;
       }
+
+      // signInWithWeb3 already requested the account. Share it with the
+      // wallet context without triggering a second MetaMask permission prompt.
+      const accounts = await provider.request({ method: "eth_accounts" });
+      const account = Array.isArray(accounts) && typeof accounts[0] === "string"
+        ? accounts[0]
+        : null;
+      if (account) {
+        window.dispatchEvent(
+          new CustomEvent("vesta:wallet-authenticated", { detail: { account } }),
+        );
+      }
     })().finally(() => {
       activeWalletSignIn = null;
     });

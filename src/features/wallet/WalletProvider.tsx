@@ -155,13 +155,29 @@ export function WalletProvider({ children }: PropsWithChildren) {
       }))
     }
     const handleChainChanged = (...args: unknown[]) => updateChain(args[0])
+    const handleAuthenticated = (event: Event) => {
+      const account = (event as CustomEvent<{ account?: unknown }>).detail?.account
+      if (typeof account !== 'string') return
+
+      void provider.request({ method: 'eth_chainId' }).then((chainIdValue) => {
+        const chainId = parseChainId(chainIdValue)
+        setState({
+          account,
+          chainId,
+          status: chainId === expectedChainId ? 'connected' : 'wrong-network',
+          error: null,
+        })
+      })
+    }
 
     provider.on('accountsChanged', handleAccountsChanged)
     provider.on('chainChanged', handleChainChanged)
+    window.addEventListener('vesta:wallet-authenticated', handleAuthenticated)
 
     return () => {
       provider.removeListener?.('accountsChanged', handleAccountsChanged)
       provider.removeListener?.('chainChanged', handleChainChanged)
+      window.removeEventListener('vesta:wallet-authenticated', handleAuthenticated)
     }
   }, [disconnect, expectedChainId, updateChain])
 

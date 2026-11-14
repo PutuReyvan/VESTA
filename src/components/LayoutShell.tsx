@@ -29,6 +29,7 @@ export function LayoutShell({
   const canCreateBatch = hasRole('company_admin')
   const walletLabel = account ? `${account.slice(0, 6)}...${account.slice(-4)}` : user?.id.slice(0, 10) ?? 'Unknown wallet'
   const roleLabel = roles[0]?.replace('_', ' ') ?? 'No role assigned'
+  const networkLabel = status === 'wrong-network' ? 'Wrong network' : 'Sepolia'
 
   return (
     <div className="app-shell">
@@ -96,7 +97,7 @@ export function LayoutShell({
             }}
             transition={{ duration: 0.2 }}
           >
-            <span>Sepolia</span><small>0x98AB...62JKL</small>
+            <span>{networkLabel}</span><small>{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Wallet not connected'}</small>
           </motion.div>
           <div className="profile-card">
             <div className="avatar">L</div>
