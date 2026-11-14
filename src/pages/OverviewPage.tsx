@@ -94,20 +94,25 @@ export function OverviewPage() {
         ))
 
         let history: BatchHistory[] = []
-        try {
-          const logs = await manager.queryFilter(manager.filters.BatchCreated(), deploymentBlock)
-          history = logs.map((log) => ({
-            txHash: log.transactionHash,
-            blockNumber: log.blockNumber,
-            admin: String(log.args?.[0] ?? ''),
-            firstScheduleId: BigInt(log.args?.[1] ?? 0),
-            scheduleCount: BigInt(log.args?.[2] ?? 0),
-            totalAllocation: BigInt(log.args?.[3] ?? 0),
-          })).reverse()
-        } catch {
-          // Some public RPC endpoints restrict historical log queries. Schedule
-          // data remains authoritative when this count is unavailable.
-          if (!cancelled) setHistoryUnavailable(true)
+        if (deploymentBlock !== null) {
+          try {
+            const logs = await manager.queryFilter(manager.filters.BatchCreated(), deploymentBlock)
+            history = logs.map((log) => {
+              if (!('args' in log)) throw new Error('Invalid BatchCreated event log.')
+              return {
+                txHash: log.transactionHash,
+                blockNumber: log.blockNumber,
+                admin: String(log.args[0] ?? ''),
+                firstScheduleId: BigInt(log.args[1] ?? 0),
+                scheduleCount: BigInt(log.args[2] ?? 0),
+                totalAllocation: BigInt(log.args[3] ?? 0),
+              }
+            }).reverse()
+          } catch {
+            // Some public RPC endpoints restrict historical log queries. Schedule
+            // data remains authoritative when this count is unavailable.
+            if (!cancelled) setHistoryUnavailable(true)
+          }
         }
 
         if (cancelled) return
@@ -148,7 +153,7 @@ export function OverviewPage() {
         <StatCard label="Locked In Contract" value={formatTokenAmount(managerBalance, decimals)} icon={<IconLock size={17} stroke={1.8} />} />
         <StatCard label="Total Released" value={formatTokenAmount(totalReleased, decimals)} icon={<IconCash size={17} stroke={1.8} />} />
         <StatCard label="Schedules" value={String(schedules.length)} icon={<IconCalendar size={17} stroke={1.8} />} />
-        <StatCard label="Batches" value={historyUnavailable ? '—' : String(batchHistory.length)} icon={<IconUsers size={17} stroke={1.8} />} />
+        <StatCard label="Batches" value={deploymentBlock === null || historyUnavailable ? '—' : String(batchHistory.length)} icon={<IconUsers size={17} stroke={1.8} />} />
       </Stagger>
       <Reveal>
         <Card>
@@ -181,7 +186,8 @@ export function OverviewPage() {
             <div className="table-row batch-history-row table-header">
               <span>Block</span><span>First ID</span><span>Schedules</span><span>Allocation</span><span>Admin</span><span>Transaction</span>
             </div>
-            {batchHistory.length === 0 && !loading && <p className="muted">No batch events found on this deployment.</p>}
+            {deploymentBlock === null && <p className="modal-error" role="alert">Batch history is not configured. Set VITE_DEPLOYMENT_BLOCK to the contract deployment block. Schedule data above remains live.</p>}
+            {deploymentBlock !== null && batchHistory.length === 0 && !loading && !historyUnavailable && <p className="muted">No batch events found on this deployment.</p>}
             {historyUnavailable && <p className="muted">Batch history is unavailable from the current RPC. Schedule data above is still live.</p>}
             {batchHistory.map((batch) => (
               <div className="table-row batch-history-row" key={batch.txHash}>

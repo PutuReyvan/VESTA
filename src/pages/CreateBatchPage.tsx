@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card'
 import { StatCard } from '../components/ui/StatCard'
 import { IconArrowLeft, IconCheck, IconCircleCheck, IconPlus, IconScale, IconTrash, IconWallet } from '@tabler/icons-react'
 import { useWallet } from '../features/wallet/useWallet'
+import { buildBatchPayload } from '../features/vesting/batchValidation'
 import {
   formatTokenAmount,
   getBrowserProvider,
@@ -114,37 +115,6 @@ export function CreateBatchPage({ onBack }: { onBack?: () => void }) {
     setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row))
   }
 
-  function buildPayload() {
-    if (!maxBatchSize || effectiveRows.length === 0 || effectiveRows.length > maxBatchSize) throw new Error(`A batch must contain between 1 and ${maxBatchSize ?? 'the contract limit'} schedules.`)
-    if (!totalAllocation || totalAllocation <= 0n) throw new Error('Total allocation must be greater than zero.')
-    if (totalAllocation > balance) throw new Error('The admin wallet does not have enough VESTA tokens.')
-
-    const payload = effectiveRows.map((row) => {
-      if (!/^0x[0-9a-fA-F]{40}$/.test(row.beneficiary)) throw new Error(`Invalid beneficiary address: ${row.beneficiary}`)
-      if (!row.start || !row.allocation || !row.durationDays || row.cliffDays === '') throw new Error('Complete every field before creating the batch.')
-      const start = Math.floor(new Date(row.start).getTime() / 1000)
-      const durationDays = Number(row.durationDays)
-      const cliffDays = Number(row.cliffDays)
-      if (!Number.isFinite(start) || !Number.isFinite(durationDays) || !Number.isFinite(cliffDays)) throw new Error('Start, duration, and cliff must be valid numbers.')
-      if (durationDays <= 0 || cliffDays < 0 || cliffDays > durationDays) throw new Error('Cliff must be between zero and duration.')
-      return {
-        beneficiary: row.beneficiary,
-        allocation: parseTokenAmount(row.allocation, decimals),
-        start: BigInt(start),
-        cliff: BigInt(Math.floor(cliffDays * 86_400)),
-        duration: BigInt(Math.floor(durationDays * 86_400)),
-      }
-    })
-
-    return {
-      beneficiaries: payload.map((row) => row.beneficiary),
-      allocations: payload.map((row) => row.allocation),
-      starts: payload.map((row) => row.start),
-      cliffs: payload.map((row) => row.cliff),
-      durations: payload.map((row) => row.duration),
-    }
-  }
-
   async function submitBatch() {
     if (!account) return
     setError(null)
@@ -152,9 +122,10 @@ export function CreateBatchPage({ onBack }: { onBack?: () => void }) {
     setConfirmed(false)
 
     const run = async () => {
-      const payload = buildPayload()
-      const requiredAllowance = totalAllocation
-      if (requiredAllowance === null) throw new Error('Total allocation must be a valid token amount.')
+      if (!maxBatchSize || effectiveRows.length > maxBatchSize) throw new Error(`A batch cannot exceed the contract limit of ${maxBatchSize ?? 'unknown'} schedules.`)
+      const payload = buildBatchPayload(effectiveRows, decimals)
+      if (payload.totalAllocation > balance) throw new Error('The admin wallet does not have enough VESTA tokens.')
+      const requiredAllowance = payload.totalAllocation
       const signer = await getSigner()
       const token = getTokenContract(signer)
       const currentAllowance = BigInt(await token.allowance(account, managerAddress))
@@ -233,8 +204,8 @@ export function CreateBatchPage({ onBack }: { onBack?: () => void }) {
               <label className="batch-field">Beneficiary<input value={row.beneficiary} onChange={(event) => updateRow(index, 'beneficiary', event.target.value)} placeholder="Wallet address" aria-label="Beneficiary" /></label>
               <label className="batch-field">Allocation (VESTA)<input value={row.allocation} onChange={(event) => updateRow(index, 'allocation', event.target.value)} type="number" min="0" placeholder="Amount" aria-label="Allocation" /></label>
               <label className="batch-field">Start<input value={row.start} onChange={(event) => updateRow(index, 'start', event.target.value)} type="datetime-local" aria-label="Start" /></label>
-              <label className="batch-field">Duration (days)<input value={row.durationDays} onChange={(event) => updateRow(index, 'durationDays', event.target.value)} type="number" min="1" placeholder="Days" aria-label="Duration in days" /></label>
-              <label className="batch-field">Cliff (days)<input value={row.cliffDays} onChange={(event) => updateRow(index, 'cliffDays', event.target.value)} type="number" min="0" placeholder="Days" aria-label="Cliff in days" /></label>
+              <label className="batch-field">Duration (days)<input value={row.durationDays} onChange={(event) => updateRow(index, 'durationDays', event.target.value)} type="number" min="1" step="1" placeholder="Days" aria-label="Duration in days" /></label>
+              <label className="batch-field">Cliff (days)<input value={row.cliffDays} onChange={(event) => updateRow(index, 'cliffDays', event.target.value)} type="number" min="0" step="1" placeholder="Days" aria-label="Cliff in days" /></label>
               <button className="icon-button" type="button" aria-label={`Remove row ${index + 1}`} disabled={effectiveRows.length === 1} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
                 <IconTrash size={17} stroke={1.8} />
               </button>

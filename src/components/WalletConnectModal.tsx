@@ -4,12 +4,12 @@ import { motion } from 'motion/react'
 import metamaskFox from '../assets/metamask-fox.svg'
 import { Button } from './ui/Button'
 import { useWallet } from '../features/wallet/useWallet'
+import { managerAddress } from '../features/vesting/contract'
 
 export function WalletConnectModal({ onClose }: { onClose: () => void }) {
   const { connect, error, status } = useWallet()
   const isConnecting = status === 'connecting'
-  const contractAddress =
-    import.meta.env.VITE_CONTRACT_ADDRESS || '0x987BA...L0D'
+  const contractConfigured = Boolean(managerAddress)
 
   useEffect(() => {
     if (status === 'connected') onClose()
@@ -50,9 +50,10 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
           <br />
           Admins can also create and fund batches.
         </p>
-        <Button type="button" className="full-width" onClick={handleConnect} disabled={isConnecting}>
+        <Button type="button" className="full-width" onClick={handleConnect} disabled={isConnecting || !contractConfigured}>
           {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
         </Button>
+        {!contractConfigured && <p className="modal-error" role="alert">Contract not configured. Set VITE_CONTRACT_ADDRESS to enable wallet actions.</p>}
         {error && <p className="modal-error" role="alert">{error}</p>}
         <p className="install-extension">
           No MetaMask?{' '}
@@ -67,7 +68,7 @@ export function WalletConnectModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="wallet-detail">
           <span><IconWallet size={18} stroke={1.8} /> Contract</span>
-          <strong>{contractAddress}</strong>
+          <strong>{managerAddress || 'Contract not configured'}</strong>
         </div>
       </motion.section>
     </motion.div>
