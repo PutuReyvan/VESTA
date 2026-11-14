@@ -14,6 +14,7 @@ This repository contains the implemented contract core, Supabase Web3 Auth/RLS b
 - Beneficiary-only claims directly to the recorded beneficiary.
 - Wallet login through Supabase Web3 Auth.
 - Off-chain recipient metadata and four application roles.
+- Wallet-based role assignment: the target wallet must sign in once, then a company admin can assign `hr_operator`, `employee`, or `auditor` without exposing Supabase UUIDs in the UI.
 - Admin Overview, Create Batch, and My Vesting screens.
 
 ERC-20 approval is a separate transaction when allowance is insufficient. Atomicity applies to funding and creation inside `createBatch()`. Native currency pays gas only. Schedules can be updated or cancelled only before their start. The off-chain database stores identity, roles, and recipient metadata; it never becomes vesting truth. Multi-token support is outside the MVP.
@@ -59,6 +60,8 @@ Generated artifacts, dependencies, local planning documents, and agent instructi
 Supabase Auth Web3 authenticates the wallet through a Sign-In with Ethereum message. Supabase Database stores `user_roles` and `recipient_profiles`; RLS enforces access by the authenticated Supabase user. The four application roles are `company_admin`, `hr_operator`, `employee`, and `auditor`.
 
 Allocation, released, vested, claimable, beneficiary schedule IDs, and schedule status stay on the contract. Claims execute from the beneficiary wallet and transfer directly to that beneficiary. A relayer must never receive or custody vested tokens.
+
+The first wallet sign-in opens the recipient profile form so the user can save a display name. Schedule IDs on the current deployment start at 1. Contract and token addresses are loaded from environment variables and shortened in the UI; they are never embedded as frontend constants.
 
 ## Deployment
 

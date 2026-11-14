@@ -4,6 +4,7 @@ export type AppRoute =
   | 'overview'
   | 'my-vesting'
   | 'create-batch'
+  | 'role-management'
 
 export type Role =
   | 'company-admin'

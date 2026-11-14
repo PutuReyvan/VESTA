@@ -13,6 +13,7 @@ import {
   isOnChainAdmin,
   managerAddress,
   parseTokenAmount,
+  shortenAddress,
   tokenAddress,
 } from '../features/vesting/contract'
 
@@ -24,19 +25,13 @@ type BatchRow = {
   cliffDays: string
 }
 
-function defaultStart() {
-  const date = new Date(Date.now() + 60_000)
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
-}
-
 function emptyRow(beneficiary = ''): BatchRow {
   return {
     beneficiary,
-    allocation: '100',
-    start: defaultStart(),
-    durationDays: '30',
-    cliffDays: '0',
+    allocation: '',
+    start: '',
+    durationDays: '',
+    cliffDays: '',
   }
 }
 
@@ -116,6 +111,7 @@ export function CreateBatchPage() {
 
     const payload = effectiveRows.map((row) => {
       if (!/^0x[0-9a-fA-F]{40}$/.test(row.beneficiary)) throw new Error(`Invalid beneficiary address: ${row.beneficiary}`)
+      if (!row.start || !row.allocation || !row.durationDays || row.cliffDays === '') throw new Error('Complete every field before creating the batch.')
       const start = Math.floor(new Date(row.start).getTime() / 1000)
       const durationDays = Number(row.durationDays)
       const cliffDays = Number(row.cliffDays)
@@ -189,9 +185,9 @@ export function CreateBatchPage() {
     <div className="page-frame create-batch-page">
       <button className="back-button" type="button"><IconArrowLeft size={17} stroke={2} /> Back</button>
       <h1>Create Batch</h1>
-      <p className="contract-line">Manager: {managerAddress || 'VITE_CONTRACT_ADDRESS missing'}</p>
-      <p className="contract-line">Token: {tokenAddress || 'VITE_TOKEN_ADDRESS missing'}</p>
-      <p className="contract-line">On-chain admin: {managerAdmin || 'Loading...'} · {isAdmin ? 'This wallet can create batches' : 'This wallet cannot create batches'}</p>
+      <p className="contract-line" title={managerAddress}>Manager: {managerAddress ? shortenAddress(managerAddress) : 'VITE_CONTRACT_ADDRESS missing'}</p>
+      <p className="contract-line" title={tokenAddress}>Token: {tokenAddress ? shortenAddress(tokenAddress) : 'VITE_TOKEN_ADDRESS missing'}</p>
+      <p className="contract-line" title={managerAdmin ?? undefined}>On-chain admin: {managerAdmin ? shortenAddress(managerAdmin) : 'Loading...'} · {isAdmin ? 'This wallet can create batches' : 'This wallet cannot create batches'}</p>
       <p className="contract-line">Every valid row is funded and created together. If any row fails, the batch reverts.</p>
       {loading && <p className="muted">Reading token balance and allowance...</p>}
       {error && <p className="modal-error" role="alert">{error}</p>}
@@ -217,11 +213,11 @@ export function CreateBatchPage() {
         <div className="batch-form">
           {effectiveRows.map((row, index) => (
             <div className="batch-row" key={`row-${index + 1}`}>
-              <input value={row.beneficiary} onChange={(event) => updateRow(index, 'beneficiary', event.target.value)} placeholder="Beneficiary 0x..." aria-label="Beneficiary" />
-              <input value={row.allocation} onChange={(event) => updateRow(index, 'allocation', event.target.value)} type="number" min="0" placeholder="VESTA" aria-label="Allocation" />
-              <input value={row.start} onChange={(event) => updateRow(index, 'start', event.target.value)} type="datetime-local" aria-label="Start" />
-              <input value={row.durationDays} onChange={(event) => updateRow(index, 'durationDays', event.target.value)} type="number" min="1" placeholder="Duration days" aria-label="Duration in days" />
-              <input value={row.cliffDays} onChange={(event) => updateRow(index, 'cliffDays', event.target.value)} type="number" min="0" placeholder="Cliff days" aria-label="Cliff in days" />
+              <label className="batch-field">Beneficiary<input value={row.beneficiary} onChange={(event) => updateRow(index, 'beneficiary', event.target.value)} placeholder="Wallet address" aria-label="Beneficiary" /></label>
+              <label className="batch-field">Allocation (VESTA)<input value={row.allocation} onChange={(event) => updateRow(index, 'allocation', event.target.value)} type="number" min="0" placeholder="Amount" aria-label="Allocation" /></label>
+              <label className="batch-field">Start<input value={row.start} onChange={(event) => updateRow(index, 'start', event.target.value)} type="datetime-local" aria-label="Start" /></label>
+              <label className="batch-field">Duration (days)<input value={row.durationDays} onChange={(event) => updateRow(index, 'durationDays', event.target.value)} type="number" min="1" placeholder="Days" aria-label="Duration in days" /></label>
+              <label className="batch-field">Cliff (days)<input value={row.cliffDays} onChange={(event) => updateRow(index, 'cliffDays', event.target.value)} type="number" min="0" placeholder="Days" aria-label="Cliff in days" /></label>
               <button className="icon-button" type="button" aria-label={`Remove row ${index + 1}`} disabled={effectiveRows.length === 1} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
                 <IconTrash size={17} stroke={1.8} />
               </button>

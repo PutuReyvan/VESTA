@@ -20,6 +20,7 @@ import {
   getTokenContract,
   managerAddress,
   readSchedule,
+  shortenAddress,
 } from '../features/vesting/contract'
 
 type LoadedSchedule = ContractSchedule & { vested: bigint; claimable: bigint }
@@ -30,7 +31,7 @@ function formatDate(timestamp: bigint) {
 
 export function VestingPage() {
   const { account } = useWallet()
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const [schedules, setSchedules] = useState<LoadedSchedule[]>([])
   const [decimals, setDecimals] = useState(18)
   const [loading, setLoading] = useState(false)
@@ -44,6 +45,8 @@ export function VestingPage() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null)
+  const [tokenDecimals, setTokenDecimals] = useState(18)
 
   useEffect(() => {
     if (!account || !user || !supabase) return
@@ -71,6 +74,29 @@ export function VestingPage() {
       cancelled = true
     }
   }, [account, user])
+
+  useEffect(() => {
+    if (!account) return
+    let cancelled = false
+
+    async function loadTokenBalance() {
+      try {
+        const token = getTokenContract(getBrowserProvider())
+        const [balance, decimalsValue] = await Promise.all([
+          token.balanceOf(account) as Promise<bigint>,
+          token.decimals() as Promise<number>,
+        ])
+        if (cancelled) return
+        setTokenBalance(BigInt(balance))
+        setTokenDecimals(Number(decimalsValue))
+      } catch {
+        if (!cancelled) setTokenBalance(null)
+      }
+    }
+
+    void loadTokenBalance()
+    return () => { cancelled = true }
+  }, [account])
 
   useEffect(() => {
     let cancelled = false
@@ -176,7 +202,7 @@ export function VestingPage() {
   return (
     <div className="page-frame">
       <h1>My Vesting</h1>
-      <p className="contract-line">Contract: {managerAddress || 'VITE_CONTRACT_ADDRESS missing'}</p>
+      <p className="contract-line" title={managerAddress}>Contract: {managerAddress ? shortenAddress(managerAddress) : 'VITE_CONTRACT_ADDRESS missing'}</p>
       {error && <p className="modal-error" role="alert">{error}</p>}
       {!account && <p className="muted">Connect the beneficiary wallet to load schedules.</p>}
       {loading && <p className="muted">Reading live vesting data...</p>}
@@ -184,6 +210,11 @@ export function VestingPage() {
       <Card>
         <h2>Recipient Profile</h2>
         <p className="contract-line">Off-chain metadata is stored in Supabase. Vesting balances and claims remain on-chain.</p>
+        <div className="tag-row profile-summary" aria-label="Wallet summary">
+          <span title={account ?? undefined}>Wallet {account ? shortenAddress(account) : 'Not connected'}</span>
+          <span>Role {roles.length > 0 ? roles.join(', ').replaceAll('_', ' ') : 'No role assigned'}</span>
+          <span>VESTA {tokenBalance === null ? '—' : formatTokenAmount(tokenBalance, tokenDecimals)}</span>
+        </div>
         {profileLoading && <p className="muted">Reading profile...</p>}
         {profileError && <p className="modal-error" role="alert">{profileError}</p>}
         {account && user && supabase ? (

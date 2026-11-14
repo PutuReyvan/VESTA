@@ -24,7 +24,9 @@ interface IVestingManager {
 
     // Anggota 3 Errors
     error InvalidToken(address provided, address expected);
+    error InvalidTokenAddress(address tokenAddress);
     error EmptyBatch();
+    error BatchTooLarge(uint256 count, uint256 maximum);
     error ArrayLengthMismatch();
     error InvalidBeneficiary();
     error InvalidAllocation();

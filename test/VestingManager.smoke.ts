@@ -10,7 +10,7 @@ describe("VestingManager foundation", function () {
 
     expect(await manager.token()).to.equal(token.target);
     expect(await manager.admin()).to.equal(deployer.address);
-    expect(await manager.nextScheduleId()).to.equal(0n);
+    expect(await manager.nextScheduleId()).to.equal(1n);
   });
 
   it("rejects an empty batch", async function () {
@@ -20,5 +20,15 @@ describe("VestingManager foundation", function () {
     await expect(
       manager.createBatch(token.target, [], [], [], [], [])
     ).to.be.revertedWithCustomError(manager, "EmptyBatch");
+  });
+
+  it("rejects an address that is not an ERC-20 contract", async function () {
+    const [deployer] = await ethers.getSigners();
+    await expect(
+      ethers.deployContract("VestingManager", [deployer.address]),
+    ).to.be.revertedWithCustomError(
+      await ethers.getContractFactory("VestingManager"),
+      "InvalidTokenAddress",
+    );
   });
 });

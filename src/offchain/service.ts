@@ -3,6 +3,7 @@ import type {
   ApplicationRole,
   DatabaseClient,
   RecipientProfile,
+  UserRoleRecord,
 } from "./types";
 
 function wallet(value: string): string {
@@ -71,12 +72,30 @@ export class OffchainService {
     };
   }
 
-  async assignRole(userId: string, role: ApplicationRole): Promise<void> {
-    const { error } = await this.database.from("user_roles").insert({
-      user_id: userId,
-      role,
+  async assignRole(walletAddress: string, role: ApplicationRole): Promise<void> {
+    const { error } = await this.database.rpc("assign_role_by_wallet", {
+      target_wallet: wallet(walletAddress),
+      target_role: role,
     });
     if (error) throw new Error(`Unable to assign role: ${error.message}`);
+  }
+
+  async listRoles(): Promise<UserRoleRecord[]> {
+    const { data, error } = await this.database.rpc("list_roles_with_wallets");
+    if (error) throw new Error(`Unable to list roles: ${error.message}`);
+    return data.map((entry) => ({
+      walletAddress: entry.wallet_address,
+      role: entry.role,
+      createdAt: entry.created_at,
+    }));
+  }
+
+  async removeRole(walletAddress: string, role: ApplicationRole): Promise<void> {
+    const { error } = await this.database.rpc("remove_role_by_wallet", {
+      target_wallet: wallet(walletAddress),
+      target_role: role,
+    });
+    if (error) throw new Error(`Unable to remove role: ${error.message}`);
   }
 
   async removeProfile(userId: string): Promise<void> {

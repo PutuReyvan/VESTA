@@ -10,6 +10,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 contract VestingManager is IVestingManager, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    uint256 public constant MAX_BATCH_SIZE = 20;
+
     mapping(uint256 => Schedule) internal schedules;
     mapping(address => uint256[]) internal beneficiaryScheduleIds;
 
@@ -21,8 +23,12 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     uint256 public override nextScheduleId;
 
     constructor(address tokenAddress) {
+        if (tokenAddress == address(0) || tokenAddress.code.length == 0) {
+            revert InvalidTokenAddress(tokenAddress);
+        }
         token = tokenAddress;
         admin = msg.sender;
+        nextScheduleId = 1;
     }
 
     // =========================================================================
@@ -42,6 +48,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
 
         uint256 count = beneficiaries.length;
         if (count == 0) revert EmptyBatch();
+        if (count > MAX_BATCH_SIZE) revert BatchTooLarge(count, MAX_BATCH_SIZE);
         if (
             allocations.length != count ||
             starts.length != count ||
@@ -63,6 +70,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
 
             if (beneficiary == address(0)) revert InvalidBeneficiary();
             if (allocation == 0) revert InvalidAllocation();
+            if (start == 0) revert InvalidScheduleTerms(cliff, duration);
             if (duration == 0 || cliff > duration)
                 revert InvalidScheduleTerms(cliff, duration);
             if (uint256(start) + uint256(duration) > type(uint64).max)
@@ -172,7 +180,11 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     function _getSchedule(
         uint256 scheduleId
     ) internal view returns (Schedule storage schedule) {
-        if (scheduleId >= nextScheduleId) {
+        if (
+            scheduleId == 0 ||
+            scheduleId >= nextScheduleId ||
+            schedules[scheduleId].beneficiary == address(0)
+        ) {
             revert InvalidScheduleId(scheduleId);
         }
         schedule = schedules[scheduleId];

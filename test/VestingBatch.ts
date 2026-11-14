@@ -88,6 +88,75 @@ describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
           ),
       ).to.be.revertedWithCustomError(vestingManager, "ArrayLengthMismatch");
     });
+
+    it("rejects batches larger than the configured maximum", async function () {
+      const { vestingManager, token, beneficiary1 } = await loadFixture(
+        deployVestingFixture,
+      );
+      const count = 21;
+      const currentTime = await time.latest();
+
+      await expect(
+        vestingManager.createBatch(
+          await token.getAddress(),
+          Array.from({ length: count }, () => beneficiary1.address),
+          Array.from({ length: count }, () => ethers.parseEther("1")),
+          Array.from({ length: count }, () => currentTime + 100),
+          Array.from({ length: count }, () => 0),
+          Array.from({ length: count }, () => 86400),
+        ),
+      )
+        .to.be.revertedWithCustomError(vestingManager, "BatchTooLarge")
+        .withArgs(count, 20);
+    });
+
+    it("rejects zero starts and rolls back every earlier row", async function () {
+      const { vestingManager, token, admin, beneficiary1, beneficiary2 } =
+        await loadFixture(deployVestingFixture);
+      const allocation = ethers.parseEther("10");
+      const currentTime = await time.latest();
+
+      await token.connect(admin).approve(await vestingManager.getAddress(), allocation * 3n);
+      await expect(
+        vestingManager.createBatch(
+          await token.getAddress(),
+          [beneficiary1.address, beneficiary2.address, beneficiary1.address],
+          [allocation, allocation, allocation],
+          [currentTime + 100, 0, currentTime + 100],
+          [0, 0, 0],
+          [86400, 86400, 86400],
+        ),
+      ).to.be.revertedWithCustomError(vestingManager, "InvalidScheduleTerms");
+
+      expect(await vestingManager.nextScheduleId()).to.equal(1n);
+      expect(await token.balanceOf(await vestingManager.getAddress())).to.equal(0n);
+      await expect(vestingManager.getSchedule(0)).to.be.revertedWithCustomError(
+        vestingManager,
+        "InvalidScheduleId",
+      );
+      expect(await vestingManager.getBeneficiarySchedules(beneficiary1.address)).to.deep.equal([]);
+    });
+
+    it("rolls back funding when allowance is insufficient", async function () {
+      const { vestingManager, token, beneficiary1 } = await loadFixture(
+        deployVestingFixture,
+      );
+      const allocation = ethers.parseEther("100");
+
+      await expect(
+        vestingManager.createBatch(
+          await token.getAddress(),
+          [beneficiary1.address],
+          [allocation],
+          [(await time.latest()) + 100],
+          [0],
+          [86400],
+        ),
+      ).to.be.reverted;
+
+      expect(await vestingManager.nextScheduleId()).to.equal(1n);
+      expect(await token.balanceOf(await vestingManager.getAddress())).to.equal(0n);
+    });
   });
 
   describe("updateScheduleTerms", function () {
@@ -112,10 +181,10 @@ describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
         );
 
       await expect(
-        vestingManager.connect(admin).updateScheduleTerms(0, 2000, 6000),
+        vestingManager.connect(admin).updateScheduleTerms(1, 2000, 6000),
       )
         .to.emit(vestingManager, "ScheduleTermsUpdated")
-        .withArgs(0, 2000, 6000);
+        .withArgs(1, 2000, 6000);
     });
   });
 
@@ -144,9 +213,9 @@ describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
 
       const adminBalanceBefore = await token.balanceOf(admin.address);
 
-      await expect(vestingManager.connect(admin).cancelSchedule(0))
+      await expect(vestingManager.connect(admin).cancelSchedule(1))
         .to.emit(vestingManager, "ScheduleCancelled")
-        .withArgs(0, beneficiary1.address, allocation);
+        .withArgs(1, beneficiary1.address, allocation);
 
       const adminBalanceAfter = await token.balanceOf(admin.address);
       expect(adminBalanceAfter - adminBalanceBefore).to.equal(allocation);

@@ -123,6 +123,7 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .status-pill.cliff { color: #c58f20; background: #fff1c8; }
 .vesting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
 .profile-form { display: grid; gap: 12px; max-width: 620px; }
+  .profile-summary { margin: 14px 0; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag-row span { padding: 6px 12px; border-radius: 14px; color: var(--muted); background: var(--surface-subtle); }
@@ -139,6 +140,13 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; }
 .batch-form { display: grid; gap: 12px; margin-bottom: 24px; }
 .batch-row { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr) auto; gap: 12px; align-items: center; }
+.batch-field { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.batch-field input { color: var(--text); }
+.role-form { display: grid; grid-template-columns: 1.5fr 1fr auto; gap: 12px; align-items: end; }
+.role-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); }
+.role-list { display: grid; gap: 8px; }
+.role-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--line); }
+.role-user { overflow: hidden; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); transition: border-color .18s ease-out, box-shadow .18s ease-out; }
 input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rgba(47, 152, 228, .14); }
 .auth-page { display: grid; grid-template-columns: 1.05fr .95fr; min-height: 100vh; margin: 12px; overflow: hidden; border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
@@ -205,6 +213,7 @@ input:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px rg
   .sidebar { width: 100%; padding: 18px; }
   .sidebar-nav { grid-template-columns: 1fr 1fr; }
   .sidebar-footer { margin-top: 0; }
+    .role-form { grid-template-columns: 1fr; }
   .page-frame { padding: 24px 16px; }
   .stats-grid, .stats-grid.compact, .batch-summary, .vesting-grid, .auth-page { grid-template-columns: 1fr; }
   .auth-page { margin: 0; border-radius: 0; }

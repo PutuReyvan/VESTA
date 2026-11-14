@@ -77,6 +77,10 @@ export function formatTokenAmount(amount: bigint, decimals: number) {
   return trimmedFraction ? `${whole}.${trimmedFraction}` : whole
 }
 
+export function shortenAddress(address: string) {
+  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not configured'
+}
+
 export function parseTokenAmount(value: string, decimals: number) {
   return parseUnits(value || '0', decimals)
 }

@@ -17,6 +17,12 @@ export interface RecipientProfile {
   metadata: Record<string, unknown>;
 }
 
+export interface UserRoleRecord {
+  walletAddress: string;
+  role: ApplicationRole;
+  createdAt: string;
+}
+
 export interface ContractSchedule {
   scheduleId: bigint;
   beneficiary: string;
@@ -84,6 +90,22 @@ export interface OffchainDatabase {
       has_role: {
         Args: { required_role: ApplicationRole };
         Returns: boolean;
+      };
+      assign_role_by_wallet: {
+        Args: { target_wallet: string; target_role: ApplicationRole };
+        Returns: string;
+      };
+      list_roles_with_wallets: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          wallet_address: string;
+          role: ApplicationRole;
+          created_at: string;
+        }>;
+      };
+      remove_role_by_wallet: {
+        Args: { target_wallet: string; target_role: ApplicationRole };
+        Returns: undefined;
       };
     };
     Enums: {

@@ -27,7 +27,7 @@ describe("VestingManager vesting core", function () {
 
     const claim = manager.connect(other).getFunction("claim");
     await expect(
-      claim(0),
+      claim(1),
     ).to.be.revertedWithCustomError(manager, "Unauthorized");
   });
 
@@ -56,7 +56,7 @@ describe("VestingManager vesting core", function () {
 
     const claim = manager.connect(beneficiary).getFunction("claim");
     await expect(
-      claim(0),
+      claim(1),
     ).to.be.revertedWithCustomError(manager, "NothingToClaim");
   });
 });

@@ -14,6 +14,7 @@ import {
   isOnChainAdmin,
   managerAddress,
   readSchedule,
+  shortenAddress,
   tokenAddress,
   deploymentBlock,
 } from '../features/vesting/contract'
@@ -25,10 +26,6 @@ type BatchHistory = {
   admin: string
   scheduleCount: bigint
   totalAllocation: bigint
-}
-
-function shortenAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 export function OverviewPage() {
@@ -66,11 +63,11 @@ export function OverviewPage() {
           token.decimals() as Promise<number>,
           token.balanceOf(managerAddress) as Promise<bigint>,
         ])
-        const count = Number(nextId)
+        const count = Number(nextId) - 1
         if (count > 1000) throw new Error('Refusing to load more than 1,000 schedules in one browser request.')
 
         const loaded = await Promise.all(
-          Array.from({ length: count }, (_, index) => readSchedule(manager, BigInt(index)).then(async (schedule) => ({
+          Array.from({ length: Math.max(0, count) }, (_, index) => readSchedule(manager, BigInt(index + 1)).then(async (schedule) => ({
             ...schedule,
             vested: BigInt(await manager.vestedAmount(schedule.scheduleId)),
             claimable: BigInt(await manager.claimableAmount(schedule.scheduleId)),
@@ -116,8 +113,8 @@ export function OverviewPage() {
 
   return (
     <PageFrame title="VESTA Overview">
-      <p className="contract-line">Contract: {managerAddress || 'VITE_CONTRACT_ADDRESS missing'}</p>
-      <p className="contract-line">Token: {tokenAddress || 'VITE_TOKEN_ADDRESS missing'}</p>
+      <p className="contract-line" title={managerAddress}>Contract: {managerAddress ? shortenAddress(managerAddress) : 'VITE_CONTRACT_ADDRESS missing'}</p>
+      <p className="contract-line" title={tokenAddress}>Token: {tokenAddress ? shortenAddress(tokenAddress) : 'VITE_TOKEN_ADDRESS missing'}</p>
       {managerAdmin && (
         <p className="contract-line">
           On-chain admin: {shortenAddress(managerAdmin)} · {isAdmin ? 'Connected wallet is admin' : 'Connected wallet is not admin'}
