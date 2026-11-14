@@ -4,7 +4,7 @@ An ERC-20 vesting project for a five-person university team. The planned differe
 
 ## Current status
 
-This repository contains the **foundation**, not a complete DApp: a contract interface, deployable skeleton, local test token, deployment script, and two smoke tests. Vesting calculations, batch creation, claims, and the frontend are not implemented. Feature methods explicitly revert with `NotImplemented()`.
+This repository implements the contract core and server-side off-chain service: ERC-20 atomic batch creation, vesting/cliff calculations, beneficiary claims, local tests, wallet-signature authentication, role checks, and Supabase migrations. A browser UI, HTTP API, Supabase deployment, and Sepolia rehearsal are still pending.
 
 ## MVP scope
 
@@ -15,7 +15,7 @@ This repository contains the **foundation**, not a complete DApp: a contract int
 - Admin Overview, Create Batch, and My Vesting screens.
 - Local tests followed by a Sepolia demonstration.
 
-ERC-20 approval is a separate transaction when allowance is insufficient. Atomicity applies to funding and creation inside `createBatch()`. Native currency pays gas only. Relayers, delegated claims, cancellation, multi-token support, and a backend database are outside the MVP.
+ERC-20 approval is a separate transaction when allowance is insufficient. Atomicity applies to funding and creation inside `createBatch()`. Native currency pays gas only. Schedules can be updated or cancelled only before their start. The off-chain database stores authentication, roles, and recipient metadata; it never becomes the vesting source of truth. Multi-token support is outside the MVP.
 
 ## Setup
 
@@ -36,10 +36,12 @@ An environment file is unnecessary for compilation and local tests. For deployme
 | Path | Purpose |
 | --- | --- |
 | `contracts/interfaces/IVestingManager.sol` | Shared schedule shape and function signatures |
-| `contracts/VestingManager.sol` | Configured token/admin and explicit feature stubs |
+| `contracts/VestingManager.sol` | Atomic batch lifecycle, vesting math, and direct beneficiary claims |
 | `contracts/test/MockERC20.sol` | Mintable local test fixture |
-| `test/VestingManager.smoke.ts` | Configuration and unfinished-path checks |
+| `test/` | Contract and off-chain authorization tests |
 | `scripts/deploy.ts` | Deploy the manager for a supplied token address |
+| `src/offchain/` | Server-side wallet authentication, role guards, metadata, and contract reads |
+| `supabase/migrations/` | Off-chain data schema and row-level-security policies |
 
 Generated artifacts, dependencies, local planning documents, and agent instructions are not versioned.
 
@@ -51,15 +53,15 @@ The Supabase migration at [`supabase/migrations/001_offchain_auth.sql`](supabase
 - `user_roles` for wallet-to-role mappings: `company_admin`, `hr_operator`, `employee`, and `auditor`.
 - `auth_nonces` for short-lived, one-time wallet sign-in challenges.
 
-`src/offchain/` provides the framework-independent service surface for the frontend/API team. `WalletAuthService` creates a nonce challenge, verifies the wallet signature, consumes the nonce, loads current roles, and issues an HMAC-signed session. `OffchainService` exposes profile and role operations. Apply RLS policies and use the Supabase service-role key only on a trusted server; never ship it to a browser.
+`src/offchain/` provides the framework-independent service surface for the frontend/API team. `WalletAuthService` creates a nonce challenge, verifies the wallet signature, consumes the nonce, loads current roles, and issues an HMAC-signed session. `OffchainService` exposes profile and role operations, including role-guarded profile reads. Apply RLS policies and use the Supabase service-role key only on a trusted server; never ship it to a browser.
 
 The contract boundary is intentional: allocation, released, vested, claimable, beneficiary schedule IDs, and schedule status are never stored in Postgres. `ContractDataService` reads those values from `VestingManager` using the configured RPC URL and manager address. Database rows can describe a recipient and authorize an application action, but they cannot be used as token balances or vesting truth. A UI should combine `OffchainService` profile/role results with `ContractDataService` reads and should submit claims/transactions through the wallet.
 
 ## Contract flow
 
-The target admin flow is `token.approve(manager, total)` when needed, followed by `manager.createBatch(...)`. The target beneficiary flow reads schedules and available amounts, then calls `manager.claim(scheduleId)`. These features remain stubs.
+The admin flow is `token.approve(manager, total)` when needed, followed by `manager.createBatch(...)`. The beneficiary flow reads schedules and available amounts, then calls `manager.claim(scheduleId)` from the beneficiary's own wallet. The contract transfers assets directly to that recorded beneficiary; a relayer must never receive or custody the vested tokens.
 
-`token()`, `admin()`, and `nextScheduleId()` expose foundation configuration. Passing smoke tests establishes only configuration and explicit stub behavior; it does not prove vesting or rollback correctness.
+`token()`, `admin()`, and `nextScheduleId()` expose contract configuration. Local tests cover the implemented contract and off-chain authorization paths, but they do not replace a formal external audit.
 
 ## Local deployment
 
@@ -83,7 +85,7 @@ console.log(await token.getAddress());
 
 Exit the console, set `VESTA_TOKEN_ADDRESS` in `.env` to that local token address, then run `npm run deploy:local`. Restarting the local chain requires redeploying both contracts and updating the address.
 
-For a later Sepolia rehearsal, set `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `VESTA_TOKEN_ADDRESS` for that network, then run `npm run deploy:sepolia`. The script deploys only the manager; it does not deploy or fund the token. Validate the token address and network before deployment. The current skeleton is not ready for the MVP demonstration.
+For a later Sepolia rehearsal, set `SEPOLIA_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `VESTA_TOKEN_ADDRESS` for that network, then run `npm run deploy:sepolia`. The script deploys only the manager; it does not deploy or fund the token. Validate the token address and network before deployment.
 
 ## Team responsibilities
 
