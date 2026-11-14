@@ -30,8 +30,9 @@ describe("VestingManager security regressions", function () {
     const { beneficiary, other, token, manager, allocation, start } =
       await loadFixture(deployFixture);
 
+    const createBatch = manager.connect(other).getFunction("createBatch");
     await expect(
-      manager.connect(other).createBatch(
+      createBatch(
         token.target,
         [beneficiary.address],
         [allocation],
@@ -190,7 +191,7 @@ describe("VestingManager security regressions", function () {
     await token.enableAttack();
     await time.increaseTo(Number(start + 10n));
 
-    await manager.connect(beneficiary).claim(1);
+    await manager.connect(beneficiary).getFunction("claim")(1);
 
     expect(await token.reentrySucceeded()).to.equal(false);
     expect(await token.balanceOf(beneficiary.address)).to.equal(allocation);
