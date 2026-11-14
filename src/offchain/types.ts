@@ -10,17 +10,11 @@ export const APPLICATION_ROLES = [
 export type ApplicationRole = (typeof APPLICATION_ROLES)[number];
 
 export interface RecipientProfile {
+  userId: string;
   walletAddress: string;
   displayName: string;
   employeeReference: string | null;
   metadata: Record<string, unknown>;
-}
-
-export interface WalletSession {
-  token: string;
-  walletAddress: string;
-  roles: ApplicationRole[];
-  expiresAt: string;
 }
 
 export interface ContractSchedule {
@@ -38,18 +32,18 @@ export interface OffchainDatabase {
     Tables: {
       user_roles: {
         Row: {
-          wallet_address: string;
+          user_id: string;
           role: ApplicationRole;
           assigned_by: string;
           created_at: string;
         };
         Insert: {
-          wallet_address: string;
+          user_id: string;
           role: ApplicationRole;
-          assigned_by: string;
+          assigned_by?: string;
         };
         Update: Partial<{
-          wallet_address: string;
+          user_id: string;
           role: ApplicationRole;
           assigned_by: string;
         }>;
@@ -57,6 +51,7 @@ export interface OffchainDatabase {
       };
       recipient_profiles: {
         Row: {
+          user_id: string;
           wallet_address: string;
           display_name: string;
           employee_reference: string | null;
@@ -66,44 +61,31 @@ export interface OffchainDatabase {
           updated_at: string;
         };
         Insert: {
+          user_id: string;
           wallet_address: string;
           display_name: string;
           employee_reference?: string | null;
           metadata?: Record<string, unknown>;
-          created_by: string;
+          created_by?: string;
         };
         Update: Partial<{
+          user_id: string;
+          wallet_address: string;
           display_name: string;
           employee_reference: string | null;
           metadata: Record<string, unknown>;
-        }>;
-        Relationships: [];
-      };
-      auth_nonces: {
-        Row: {
-          wallet_address: string;
-          nonce_hash: string;
-          message: string;
-          expires_at: string;
-          created_at: string;
-        };
-        Insert: {
-          wallet_address: string;
-          nonce_hash: string;
-          message: string;
-          expires_at: string;
-        };
-        Update: Partial<{
-          wallet_address: string;
-          nonce_hash: string;
-          message: string;
-          expires_at: string;
+          created_by: string;
         }>;
         Relationships: [];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      has_role: {
+        Args: { required_role: ApplicationRole };
+        Returns: boolean;
+      };
+    };
     Enums: {
       application_role: ApplicationRole;
     };

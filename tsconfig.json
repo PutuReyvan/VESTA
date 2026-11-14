@@ -3,11 +3,12 @@
     "target": "es2022",
     "module": "commonjs",
     "strict": true,
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "dist",
     "types": ["node", "mocha"]
   },
-  "include": ["./hardhat.config.ts", "./scripts", "./test", "./src"]
+  "include": ["./hardhat.config.ts", "./scripts", "./test", "./src/offchain/**/*.ts"]
 }
