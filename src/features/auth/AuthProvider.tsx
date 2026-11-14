@@ -8,7 +8,11 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { ApplicationRole } from "../../offchain/types";
-import { AuthContext, type AuthContextValue } from "./AuthContext";
+import {
+  AuthContext,
+  type AuthContextValue,
+  type IdentityInitializationStatus,
+} from "./AuthContext";
 import { supabase } from "./supabase";
 
 const SEPOLIA_CHAIN_ID = 11155111;
@@ -32,74 +36,115 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(
     supabase ? null : "Supabase Web3 Auth is not configured.",
   );
+  const [identityStatus, setIdentityStatus] = useState<IdentityInitializationStatus>("idle");
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const roleLoadVersion = useRef(0);
 
   const loadRoles = useCallback(async (userId: string | null) => {
     const requestVersion = ++roleLoadVersion.current;
+    setRoles([]);
+    setIdentityError(null);
     if (!supabase || !userId) {
-      setRoles([]);
+      setIdentityStatus("idle");
       return;
     }
 
-    const { data: verifiedWallet, error: identityError } = await supabase.rpc("ensure_wallet_identity");
-    if (identityError) {
-      setError(identityError.message);
-      setRoles([]);
-      return;
-    }
-
-    const provider = getEthereumProvider();
-    const accounts = provider
-      ? await provider.request({ method: "eth_accounts" })
-      : [];
-    const activeWallet = Array.isArray(accounts) && typeof accounts[0] === "string"
-      ? accounts[0]
-      : null;
-    if (!activeWallet || activeWallet.toLowerCase() !== verifiedWallet.toLowerCase()) {
+    setError(null);
+    setIdentityStatus("loading");
+    try {
+      const { data: verifiedWallet, error: walletIdentityError } = await supabase.rpc("ensure_wallet_identity");
       if (requestVersion !== roleLoadVersion.current) return;
-      setSession(null);
-      setRoles([]);
-      setError("The connected wallet does not match this session. Sign in again.");
-      void supabase.auth.signOut();
-      return;
-    }
+      if (walletIdentityError) throw new Error(walletIdentityError.message);
+      if (typeof verifiedWallet !== "string") {
+        throw new Error("Wallet identity verification returned an invalid response.");
+      }
 
-    const { error: defaultRoleError } = await supabase.rpc("ensure_default_employee_role");
-    if (defaultRoleError) {
-      setError(defaultRoleError.message);
-      setRoles([]);
-      return;
-    }
+      const provider = getEthereumProvider();
+      const accounts = provider
+        ? await provider.request({ method: "eth_accounts" })
+        : [];
+      if (requestVersion !== roleLoadVersion.current) return;
+      const activeWallet = Array.isArray(accounts) && typeof accounts[0] === "string"
+        ? accounts[0]
+        : null;
+      if (!activeWallet || activeWallet.toLowerCase() !== verifiedWallet.toLowerCase()) {
+        setSession(null);
+        setRoles([]);
+        setIdentityStatus("idle");
+        setIdentityError(null);
+        setError("The connected wallet does not match this session. Sign in again.");
+        void supabase.auth.signOut();
+        return;
+      }
 
-    const { data, error: roleError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    if (roleError) {
-      setError(roleError.message);
+      const { error: defaultRoleError } = await supabase.rpc("ensure_default_employee_role");
+      if (requestVersion !== roleLoadVersion.current) return;
+      if (defaultRoleError) throw new Error(defaultRoleError.message);
+
+      const { data, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      if (requestVersion !== roleLoadVersion.current) return;
+      if (roleError) throw new Error(roleError.message);
+
+      setRoles((data ?? []).map((entry) => entry.role as ApplicationRole));
+      setIdentityStatus("ready");
+      setIdentityError(null);
+    } catch (loadError) {
+      if (requestVersion !== roleLoadVersion.current) return;
       setRoles([]);
-      return;
+      setIdentityStatus("error");
+      setIdentityError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to verify wallet identity and roles.",
+      );
     }
-    if (requestVersion !== roleLoadVersion.current) return;
-    setRoles(data.map((entry) => entry.role as ApplicationRole));
   }, []);
 
   useEffect(() => {
     if (!supabase) return;
 
     let active = true;
-    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!active) return;
-      if (sessionError) setError(sessionError.message);
-      setSession(data.session);
-      void loadRoles(data.session?.user.id ?? null);
-      setLoading(false);
-    });
+    void supabase.auth.getSession()
+      .then(({ data, error: sessionError }) => {
+        if (!active) return;
+        if (sessionError) {
+          setError(sessionError.message);
+          setSession(null);
+          setRoles([]);
+          setIdentityStatus("idle");
+          setIdentityError(null);
+          return;
+        }
+        setSession(data.session);
+        void loadRoles(data.session?.user.id ?? null);
+      })
+      .catch((sessionLoadError: unknown) => {
+        if (!active) return;
+        setError(
+          sessionLoadError instanceof Error
+            ? sessionLoadError.message
+            : "Unable to load the authentication session.",
+        );
+        setSession(null);
+        setRoles([]);
+        setIdentityStatus("idle");
+        setIdentityError(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!active) return;
+      roleLoadVersion.current += 1;
       setSession(nextSession);
-      setError(null);
+      setRoles([]);
+      setIdentityError(null);
+      setIdentityStatus(nextSession ? "loading" : "idle");
+      if (nextSession) setError(null);
       setTimeout(() => {
         if (active) void loadRoles(nextSession?.user.id ?? null);
       }, 0);
@@ -110,6 +155,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       data.subscription.unsubscribe();
     };
   }, [loadRoles]);
+
+  const retryIdentityInitialization = useCallback(async () => {
+    await loadRoles(session?.user.id ?? null);
+  }, [loadRoles, session?.user.id]);
 
   const signInWithWallet = useCallback(() => {
     if (activeWalletSignIn) return activeWalletSignIn;
@@ -165,13 +214,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
+    setError(null);
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) {
       setError(signOutError.message);
       throw signOutError;
     }
+    roleLoadVersion.current += 1;
     setSession(null);
     setRoles([]);
+    setIdentityStatus("idle");
+    setIdentityError(null);
   }, []);
 
   useEffect(() => {
@@ -183,6 +236,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         // role-gated actions while the new account is already selected.
         setSession(null);
         setRoles([]);
+        setIdentityStatus("idle");
+        setIdentityError(null);
         void signOut();
       }
     };
@@ -196,14 +251,27 @@ export function AuthProvider({ children }: PropsWithChildren) {
       configured: Boolean(supabase),
       loading,
       error,
+      identityStatus,
+      identityError,
       session,
       user: session?.user ?? null,
       roles,
       hasRole: (role) => roles.includes(role),
+      retryIdentityInitialization,
       signInWithWallet,
       signOut,
     }),
-    [error, loading, roles, session, signInWithWallet, signOut],
+    [
+      error,
+      identityError,
+      identityStatus,
+      loading,
+      retryIdentityInitialization,
+      roles,
+      session,
+      signInWithWallet,
+      signOut,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

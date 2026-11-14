@@ -11,23 +11,92 @@ import { MotionDemo } from './motion/MotionDemo'
 import { AnimatePresence } from 'motion/react'
 import { PageTransition } from './motion/primitives'
 import { useAuth } from './features/auth/useAuth'
+import { getAuthAccessState } from './features/auth/AuthContext'
+import { Button } from './components/ui/Button'
+import { Logo } from './components/ui/Logo'
 
 function App() {
   const [route, setRoute] = useState<AppRoute>('overview')
-  const { loading, session, error, roles, hasRole } = useAuth()
+  const {
+    loading,
+    session,
+    error,
+    identityStatus,
+    identityError,
+    roles,
+    hasRole,
+    retryIdentityInitialization,
+    signOut,
+  } = useAuth()
   const canCreateBatch = hasRole('company_admin')
   const canViewOverview = hasRole('company_admin') || hasRole('hr_operator') || hasRole('auditor')
-  const canViewVesting = hasRole('company_admin') || hasRole('hr_operator') || hasRole('employee') || roles.length === 0
+  const canViewVesting = hasRole('company_admin') || hasRole('hr_operator') || hasRole('employee')
   const canManageRoles = hasRole('company_admin')
+  const authAccessState = getAuthAccessState({
+    loading,
+    authenticated: Boolean(session),
+    identityStatus,
+    roleCount: roles.length,
+  })
 
   if (import.meta.env.DEV && window.location.search.includes('motion-demo')) {
     return <MotionDemo />
   }
 
-  if (loading) return <div className="auth-page"><p className="muted">Loading session...</p></div>
+  if (authAccessState === 'loading') {
+    return (
+      <div className="auth-page">
+        <section className="auth-panel">
+          <Logo />
+          <p className="muted">
+            {session ? 'Verifying wallet identity and roles...' : 'Loading session...'}
+          </p>
+        </section>
+        <div className="auth-art" aria-hidden="true" />
+      </div>
+    )
+  }
 
-  if (!session) {
+  if (authAccessState === 'login') {
     return <AuthPage mode="login" error={error} />
+  }
+
+  if (authAccessState === 'identity-error' || authAccessState === 'no-role') {
+    const identityFailed = authAccessState === 'identity-error'
+    return (
+      <div className="auth-page">
+        <section className="auth-panel">
+          <Logo />
+          <h1>{identityFailed ? 'We could not verify your access' : 'No role assigned'}</h1>
+          <p className="muted">
+            {identityFailed
+              ? 'Vesta could not verify your wallet identity and roles. Retry the check or log out and sign in again.'
+              : 'Your wallet is verified, but no application role is assigned. Ask an administrator to assign one, then check again.'}
+          </p>
+          {identityFailed && (
+            <p className="modal-error" role="alert">
+              {error ?? identityError ?? 'Identity verification failed.'}
+            </p>
+          )}
+          <Button
+            type="button"
+            className="full-width"
+            onClick={() => void retryIdentityInitialization().catch(() => undefined)}
+          >
+            {identityFailed ? 'Retry verification' : 'Check roles again'}
+          </Button>
+          <Button
+            type="button"
+            className="full-width"
+            variant="ghost"
+            onClick={() => void signOut().catch(() => undefined)}
+          >
+            Log out
+          </Button>
+        </section>
+        <div className="auth-art" aria-hidden="true" />
+      </div>
+    )
   }
 
   const activeRoute = route === 'create-batch' && !canCreateBatch
