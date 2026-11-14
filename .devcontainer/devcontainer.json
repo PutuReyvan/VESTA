@@ -1,0 +1,27 @@
+{
+  "name": "vesta ambalabui",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:latest",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/project,type=bind",
+  "workspaceFolder": "/project",
+  "postCreateCommand": "npm ci && npm run build && npm test && npm run lint && npx tsc --noEmit",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[solidity]": {
+          "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+        }
+      },
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "openai.chatgpt",
+        "google.google-antigravity",
+        "NomicFoundation.hardhat-solidity",
+        "eamodio.gitlens",
+        "usernamehw.errorlens"
+      ]
+    }
+  }
+}
