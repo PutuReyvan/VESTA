@@ -34,6 +34,7 @@ contract ReentrantClaimToken is ERC20 {
             to != address(0)
         ) {
             attackAttempted = true;
+            // solhint-disable-next-line avoid-low-level-calls
             (reentrySucceeded, ) = manager.call(
                 abi.encodeWithSignature("claim(uint256)", scheduleId)
             );
