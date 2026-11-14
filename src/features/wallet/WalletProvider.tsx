@@ -159,20 +159,6 @@ export function WalletProvider({ children }: PropsWithChildren) {
     provider.on('accountsChanged', handleAccountsChanged)
     provider.on('chainChanged', handleChainChanged)
 
-    void provider.request({ method: 'eth_accounts' }).then(async (accounts) => {
-      const account = Array.isArray(accounts) && typeof accounts[0] === 'string'
-        ? accounts[0]
-        : null
-      if (!account) return
-      const chainId = parseChainId(await provider.request({ method: 'eth_chainId' }))
-      setState({
-        account,
-        chainId,
-        status: chainId === expectedChainId ? 'connected' : 'wrong-network',
-        error: null,
-      })
-    }).catch(() => undefined)
-
     return () => {
       provider.removeListener?.('accountsChanged', handleAccountsChanged)
       provider.removeListener?.('chainChanged', handleChainChanged)

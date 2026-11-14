@@ -17,6 +17,8 @@ type EthereumProvider = {
   request(args: { method: string; params?: readonly unknown[] }): Promise<unknown>;
 };
 
+let activeWalletSignIn: Promise<void> | null = null;
+
 function getEthereumProvider(): EthereumProvider | null {
   const provider = (window as Window & { ethereum?: EthereumProvider }).ethereum;
   return provider && typeof provider.request === "function" ? provider : null;
@@ -75,36 +77,44 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, [loadRoles]);
 
-  const signInWithWallet = useCallback(async () => {
-    if (!supabase) throw new Error("Supabase Web3 Auth is not configured.");
+  const signInWithWallet = useCallback(() => {
+    if (activeWalletSignIn) return activeWalletSignIn;
 
-    const provider = getEthereumProvider();
-    if (!provider) {
-      throw new Error("No compatible Ethereum wallet was detected in this browser.");
-    }
+    activeWalletSignIn = (async () => {
+      if (!supabase) throw new Error("Supabase Web3 Auth is not configured.");
 
-    setError(null);
+      const provider = getEthereumProvider();
+      if (!provider) {
+        throw new Error("No compatible Ethereum wallet was detected in this browser.");
+      }
 
-    const chainId = await provider.request({ method: "eth_chainId" });
-    if (chainId !== SEPOLIA_CHAIN_HEX) {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: SEPOLIA_CHAIN_HEX }],
+      setError(null);
+
+      const chainId = await provider.request({ method: "eth_chainId" });
+      if (chainId !== SEPOLIA_CHAIN_HEX) {
+        await provider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: SEPOLIA_CHAIN_HEX }],
+        });
+      }
+
+      // Supabase signInWithWeb3 performs the single eth_requestAccounts call
+      // internally. Do not call WalletProvider.connect() before this method;
+      // doing so creates two concurrent MetaMask permission requests.
+      const { error: signInError } = await supabase.auth.signInWithWeb3({
+        chain: "ethereum",
+        statement: "Sign in to VESTA to access vesting data.",
+        options: { signInWithEthereum: { chainId: SEPOLIA_CHAIN_ID } },
       });
-    }
-
-    // Supabase signInWithWeb3 performs the single eth_requestAccounts call
-    // internally. Do not call WalletProvider.connect() before this method;
-    // doing so creates two concurrent MetaMask permission requests.
-    const { error: signInError } = await supabase.auth.signInWithWeb3({
-      chain: "ethereum",
-      statement: "Sign in to VESTA to access vesting data.",
-      options: { signInWithEthereum: { chainId: SEPOLIA_CHAIN_ID } },
+      if (signInError) {
+        setError(signInError.message);
+        throw signInError;
+      }
+    })().finally(() => {
+      activeWalletSignIn = null;
     });
-    if (signInError) {
-      setError(signInError.message);
-      throw signInError;
-    }
+
+    return activeWalletSignIn;
   }, []);
 
   const signOut = useCallback(async () => {
