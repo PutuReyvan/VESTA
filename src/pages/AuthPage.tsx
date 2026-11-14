@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { Button } from '../components/ui/Button'
 import { Logo } from '../components/ui/Logo'
 import { useAuth } from '../features/auth/useAuth'
-import { useWallet } from '../features/wallet/useWallet'
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = error.message
+    if (typeof message === 'string' && message.length > 0) return message
+  }
+  return 'Wallet sign-in failed.'
+}
 
 export function AuthPage({
   mode,
@@ -13,7 +21,6 @@ export function AuthPage({
 }) {
   const isLogin = mode === 'login'
   const { signInWithWallet } = useAuth()
-  const { connect } = useWallet()
   const [pending, setPending] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
 
@@ -21,10 +28,9 @@ export function AuthPage({
     setPending(true)
     setLocalError(null)
     try {
-      if (!await connect()) return
       await signInWithWallet()
     } catch (signInError) {
-      setLocalError(signInError instanceof Error ? signInError.message : 'Wallet sign-in failed.')
+      setLocalError(getErrorMessage(signInError))
     } finally {
       setPending(false)
     }
