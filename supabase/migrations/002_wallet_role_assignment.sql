@@ -115,6 +115,8 @@ revoke execute on function public.remove_role_by_wallet(text, public.application
 grant execute on function public.assign_role_by_wallet(text, public.application_role) to authenticated;
 grant execute on function public.list_roles_with_wallets() to authenticated;
 grant execute on function public.remove_role_by_wallet(text, public.application_role) to authenticated;
+revoke all on function public.current_wallet_address() from public;
+revoke execute on function public.current_wallet_address() from anon;
 grant execute on function public.current_wallet_address() to authenticated;
 
 create policy "users can create their own recipient profile"
