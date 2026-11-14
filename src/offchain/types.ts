@@ -9,6 +9,17 @@ export const APPLICATION_ROLES = [
 
 export type ApplicationRole = (typeof APPLICATION_ROLES)[number];
 
+export const ROLE_LABELS: Record<ApplicationRole, string> = {
+  company_admin: "Company Admin",
+  hr_operator: "HR Operator",
+  employee: "Employee",
+  auditor: "Auditor",
+};
+
+export function formatRole(role: ApplicationRole): string {
+  return ROLE_LABELS[role];
+}
+
 export interface RecipientProfile {
   userId: string;
   walletAddress: string;
@@ -89,6 +100,10 @@ export interface OffchainDatabase {
     Functions: {
       has_role: {
         Args: { required_role: ApplicationRole };
+        Returns: boolean;
+      };
+      ensure_default_employee_role: {
+        Args: Record<string, never>;
         Returns: boolean;
       };
       assign_role_by_wallet: {

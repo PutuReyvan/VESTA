@@ -1,16 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
-import { APPLICATION_ROLES, type ApplicationRole, type DatabaseClient, type UserRoleRecord } from '../offchain/types'
+import {
+  APPLICATION_ROLES,
+  formatRole,
+  type ApplicationRole,
+  type DatabaseClient,
+  type RecipientProfile,
+  type UserRoleRecord,
+} from '../offchain/types'
 import { OffchainService } from '../offchain/service'
 import { supabase } from '../features/auth/supabase'
 import { useAuth } from '../features/auth/useAuth'
 import { useWallet } from '../features/wallet/useWallet'
+import { shortenAddress } from '../features/vesting/contract'
 
 export function RoleManagementPage() {
   const { hasRole } = useAuth()
   const { account } = useWallet()
+  const [profiles, setProfiles] = useState<RecipientProfile[]>([])
   const [roles, setRoles] = useState<UserRoleRecord[]>([])
   const [walletAddress, setWalletAddress] = useState('')
   const [role, setRole] = useState<ApplicationRole>('employee')
@@ -23,9 +32,14 @@ export function RoleManagementPage() {
     setError(null)
     try {
       const service = new OffchainService(supabase as unknown as DatabaseClient)
-      setRoles(await service.listRoles())
+      const [loadedProfiles, loadedRoles] = await Promise.all([
+        service.listProfiles(),
+        service.listRoles(),
+      ])
+      setProfiles(loadedProfiles)
+      setRoles(loadedRoles)
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load roles.')
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load members.')
     } finally {
       setLoading(false)
     }
@@ -35,17 +49,26 @@ export function RoleManagementPage() {
     if (hasRole('company_admin')) queueMicrotask(() => void reload())
   }, [hasRole])
 
+  const selectedProfile = profiles.find((profile) => profile.walletAddress === walletAddress)
+  const memberRoles = useMemo(() => {
+    const byWallet = new Map<string, ApplicationRole[]>()
+    for (const record of roles) {
+      const key = record.walletAddress.toLowerCase()
+      byWallet.set(key, [...(byWallet.get(key) ?? []), record.role])
+    }
+    return byWallet
+  }, [roles])
+
   async function assign() {
-    if (!supabase || !walletAddress.trim()) {
-      setError('Enter the team member wallet address.')
+    if (!supabase || !walletAddress) {
+      setError('Select a registered member first.')
       return
     }
     setLoading(true)
     setError(null)
     try {
       const service = new OffchainService(supabase as unknown as DatabaseClient)
-      await service.assignRole(walletAddress.trim(), role)
-      setWalletAddress('')
+      await service.assignRole(walletAddress, role)
       await reload()
     } catch (assignError) {
       setError(assignError instanceof Error ? assignError.message : 'Failed to assign role.')
@@ -74,32 +97,52 @@ export function RoleManagementPage() {
   return (
     <div className="page-frame">
       <h1>Role Management</h1>
-      <p className="contract-line">Roles control application access. Ask each team member to sign in once, then assign a role using their wallet address. Smart-contract admin access is still enforced by the wallet on-chain.</p>
+      <p className="contract-line">Select a registered member by name. The wallet address remains the identity used for on-chain access.</p>
       <Card>
         <h2>Assign Role</h2>
         <div className="role-form">
-          <input value={walletAddress} onChange={(event) => setWalletAddress(event.target.value)} placeholder="Team member wallet address" aria-label="Team member wallet address" />
-          <select value={role} onChange={(event) => setRole(event.target.value as ApplicationRole)} aria-label="Application role">
-            {APPLICATION_ROLES.map((option) => <option key={option} value={option}>{option}</option>)}
+          <select value={walletAddress} onChange={(event) => setWalletAddress(event.target.value)} aria-label="Registered member">
+            <option value="">Select member</option>
+            {profiles.map((profile) => <option key={profile.walletAddress} value={profile.walletAddress}>{profile.displayName} · {shortenAddress(profile.walletAddress)}</option>)}
           </select>
-          <Button type="button" onClick={() => void assign()} disabled={loading} icon={<IconPlus size={18} stroke={2} />}>Assign</Button>
+          <select value={role} onChange={(event) => setRole(event.target.value as ApplicationRole)} aria-label="Application role">
+            {APPLICATION_ROLES.map((option) => <option key={option} value={option}>{formatRole(option)}</option>)}
+          </select>
+          <Button type="button" onClick={() => void assign()} disabled={loading || !walletAddress} icon={<IconPlus size={18} stroke={2} />}>Assign</Button>
         </div>
+        {selectedProfile && <p className="role-selection"><strong>{selectedProfile.displayName}</strong><span>{shortenAddress(selectedProfile.walletAddress)}</span></p>}
+        {profiles.length === 0 && !loading && <p className="muted">No completed profiles yet. Each member must sign in and save a name first.</p>}
         {error && <p className="modal-error" role="alert">{error}</p>}
       </Card>
       <Card>
-        <h2>Current Roles</h2>
-        {loading && <p className="muted">Loading roles...</p>}
-        <div className="role-list">
-          {roles.map((record) => (
-            <div className="role-row" key={`${record.userId}-${record.role}`}>
-              <span className="role-user" title={record.walletAddress}>{`${record.walletAddress.slice(0, 6)}...${record.walletAddress.slice(-4)}`}</span>
-              <strong>{record.role}</strong>
-              <button className="icon-button" type="button" title="Remove role" aria-label={`Remove ${record.role} from ${record.walletAddress}`} disabled={record.walletAddress.toLowerCase() === account?.toLowerCase() && record.role === 'company_admin'} onClick={() => void remove(record)}>
-                <IconTrash size={17} stroke={1.8} />
-              </button>
-            </div>
-          ))}
-          {!loading && roles.length === 0 && <p className="muted">No role records found.</p>}
+        <h2>Registered Members</h2>
+        {loading && <p className="muted">Loading members...</p>}
+        <div className="member-list">
+          {profiles.map((profile) => {
+            const profileRoles = memberRoles.get(profile.walletAddress.toLowerCase()) ?? []
+            return (
+              <div className="member-card" key={profile.walletAddress}>
+                <div>
+                  <strong>{profile.displayName}</strong>
+                  <span title={profile.walletAddress}>{shortenAddress(profile.walletAddress)}</span>
+                </div>
+                <div className="member-roles">
+                  {profileRoles.length > 0 ? profileRoles.map((memberRole) => {
+                    const record = roles.find((entry) => entry.walletAddress.toLowerCase() === profile.walletAddress.toLowerCase() && entry.role === memberRole)
+                    return record ? (
+                      <span className="role-chip" key={`${record.walletAddress}-${record.role}`}>
+                        {formatRole(record.role)}
+                        <button type="button" title={`Remove ${formatRole(record.role)}`} aria-label={`Remove ${formatRole(record.role)} from ${profile.displayName}`} disabled={record.walletAddress.toLowerCase() === account?.toLowerCase() && record.role === 'company_admin'} onClick={() => void remove(record)}>
+                          <IconTrash size={14} stroke={2} />
+                        </button>
+                      </span>
+                    ) : null
+                  }) : <span className="muted">No role assigned</span>}
+                </div>
+              </div>
+            )
+          })}
+          {!loading && profiles.length === 0 && <p className="muted">No registered members found.</p>}
         </div>
       </Card>
     </div>

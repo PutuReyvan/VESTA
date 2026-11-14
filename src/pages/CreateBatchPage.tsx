@@ -41,6 +41,7 @@ export function CreateBatchPage() {
   const [decimals, setDecimals] = useState(18)
   const [balance, setBalance] = useState(0n)
   const [allowance, setAllowance] = useState(0n)
+  const [maxBatchSize, setMaxBatchSize] = useState<number | null>(null)
   const [managerAdmin, setManagerAdmin] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [action, setAction] = useState<'idle' | 'approving' | 'creating'>('idle')
@@ -60,17 +61,19 @@ export function CreateBatchPage() {
         const provider = getBrowserProvider()
         const manager = getManagerContract(provider)
         const token = getTokenContract(provider)
-        const [admin, tokenDecimals, tokenBalance, currentAllowance] = await Promise.all([
+        const [admin, tokenDecimals, tokenBalance, currentAllowance, batchSize] = await Promise.all([
           manager.admin() as Promise<string>,
           token.decimals() as Promise<number>,
           token.balanceOf(account) as Promise<bigint>,
           token.allowance(account, managerAddress) as Promise<bigint>,
+          manager.MAX_BATCH_SIZE() as Promise<bigint>,
         ])
         if (cancelled) return
         setManagerAdmin(admin)
         setDecimals(Number(tokenDecimals))
         setBalance(BigInt(tokenBalance))
         setAllowance(BigInt(currentAllowance))
+        setMaxBatchSize(Number(batchSize))
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Failed to read token and manager state.')
       } finally {
@@ -99,13 +102,14 @@ export function CreateBatchPage() {
 
   const isAdmin = Boolean(account && managerAdmin && isOnChainAdmin(account, managerAdmin))
   const needsApproval = totalAllocation === null || allowance < totalAllocation
+  const hasCompleteRows = effectiveRows.length > 0 && effectiveRows.every((row) => row.beneficiary && row.allocation && row.start && row.durationDays && row.cliffDays !== '')
 
   function updateRow(index: number, field: keyof BatchRow, value: string) {
     setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row))
   }
 
   function buildPayload() {
-    if (effectiveRows.length === 0 || effectiveRows.length > 20) throw new Error('A batch must contain between 1 and 20 schedules.')
+    if (!maxBatchSize || effectiveRows.length === 0 || effectiveRows.length > maxBatchSize) throw new Error(`A batch must contain between 1 and ${maxBatchSize ?? 'the contract limit'} schedules.`)
     if (!totalAllocation || totalAllocation <= 0n) throw new Error('Total allocation must be greater than zero.')
     if (totalAllocation > balance) throw new Error('The admin wallet does not have enough VESTA tokens.')
 
@@ -206,7 +210,7 @@ export function CreateBatchPage() {
       <Card>
         <div className="section-heading">
           <h2>All Schedules</h2>
-          <button className="back-button" type="button" onClick={() => setRows((current) => current.length >= 20 ? current : [...current, emptyRow(account ?? '')])}>
+          <button className="back-button" type="button" disabled={!maxBatchSize || rows.length >= maxBatchSize} onClick={() => setRows((current) => maxBatchSize && current.length < maxBatchSize ? [...current, emptyRow()] : current)}>
             <IconPlus size={17} stroke={2} /> Add Row
           </button>
         </div>
@@ -228,7 +232,7 @@ export function CreateBatchPage() {
           variant="success"
           className="full-width"
           icon={<IconCheck size={18} stroke={2} />}
-          disabled={!account || !isAdmin || totalAllocation === null || action !== 'idle'}
+          disabled={!account || !isAdmin || !maxBatchSize || !hasCompleteRows || totalAllocation === null || totalAllocation <= 0n || action !== 'idle'}
           onClick={() => void (needsApproval ? approve() : createBatch())}
         >
           {action === 'approving' ? 'Approving...' : action === 'creating' ? 'Creating...' : needsApproval ? 'Approve' : 'Create Batch'}

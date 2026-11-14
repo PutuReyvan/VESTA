@@ -13,6 +13,10 @@ import {
 } from '@tabler/icons-react'
 import { useWallet } from '../features/wallet/useWallet'
 import { useAuth } from '../features/auth/useAuth'
+import { supabase } from '../features/auth/supabase'
+import { OffchainService } from '../offchain/service'
+import type { DatabaseClient } from '../offchain/types'
+import { formatRole } from '../offchain/types'
 import { AnimatePresence, motion } from 'motion/react'
 import { formatTokenAmount, getBrowserProvider, getTokenContract, shortenAddress } from '../features/vesting/contract'
 
@@ -33,9 +37,34 @@ export function LayoutShell({
   const canViewVesting = hasRole('company_admin') || hasRole('hr_operator') || hasRole('employee') || roles.length === 0
   const canManageRoles = hasRole('company_admin')
   const walletLabel = account ? shortenAddress(account) : 'Unknown wallet'
-  const roleLabel = roles[0]?.replace('_', ' ') ?? 'No role assigned'
+  const roleLabel = roles.length > 0 ? roles.map(formatRole).join(', ') : 'No role assigned'
   const networkLabel = status === 'wrong-network' ? 'Wrong network' : 'Sepolia'
   const [tokenBalance, setTokenBalance] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!account || !supabase) return
+    let cancelled = false
+    async function loadProfileName() {
+      try {
+        const service = new OffchainService(supabase as unknown as DatabaseClient)
+        const profile = await service.getProfile(account)
+        if (!cancelled) setDisplayName(profile?.displayName ?? null)
+      } catch {
+        if (!cancelled) setDisplayName(null)
+      }
+    }
+    void loadProfileName()
+    const handleProfileUpdated = (event: Event) => {
+      const name = (event as CustomEvent<{ displayName?: unknown }>).detail?.displayName
+      if (typeof name === 'string') setDisplayName(name || null)
+    }
+    window.addEventListener('vesta:profile-updated', handleProfileUpdated)
+    return () => {
+      cancelled = true
+      window.removeEventListener('vesta:profile-updated', handleProfileUpdated)
+    }
+  }, [account])
 
   useEffect(() => {
     if (!account) return
@@ -138,9 +167,10 @@ export function LayoutShell({
             <span>{networkLabel}</span><small>{account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Wallet not connected'}</small>
           </motion.div>
           <div className="profile-card">
-            <div className="avatar">L</div>
+            <div className="avatar">{(displayName?.[0] ?? 'L').toUpperCase()}</div>
             <div>
-              <strong>{walletLabel}</strong>
+              <strong>{displayName ?? walletLabel}</strong>
+              <small>{walletLabel}</small>
               <small>{roleLabel}</small>
               <small>{tokenBalance === null ? 'VESTA balance loading...' : `${tokenBalance} VESTA`}</small>
             </div>

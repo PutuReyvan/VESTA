@@ -123,7 +123,11 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .status-pill.cliff { color: #c58f20; background: #fff1c8; }
 .vesting-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
 .profile-form { display: grid; gap: 12px; max-width: 620px; }
+  .profile-field { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+  .profile-field span { color: var(--muted); font-weight: 400; }
   .profile-summary { margin: 14px 0; }
+  .profile-saved-card h2 { margin: 2px 0 4px; }
+  .eyebrow { margin: 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag-row span { padding: 6px 12px; border-radius: 14px; color: var(--muted); background: var(--surface-subtle); }
@@ -144,7 +148,17 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .batch-field input { color: var(--text); }
 .role-form { display: grid; grid-template-columns: 1.5fr 1fr auto; gap: 12px; align-items: end; }
 .role-form select { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); }
-.role-list { display: grid; gap: 8px; }
+  .role-selection { display: grid; gap: 3px; margin: 14px 0 0; }
+  .role-selection span, .member-card span { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
+  .member-list { display: grid; gap: 8px; }
+  .member-card { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 14px 8px; border-bottom: 1px solid var(--line); }
+  .member-card > div:first-child { min-width: 0; display: grid; gap: 4px; }
+  .member-card strong { font-size: 18px; }
+  .member-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .member-roles { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .role-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 14px; color: var(--text); background: var(--surface-subtle); font-family: inherit; font-size: 12px; }
+  .role-chip button { display: grid; place-items: center; padding: 0; border: 0; color: var(--muted); background: transparent; cursor: pointer; }
+  .role-chip button:disabled { cursor: not-allowed; opacity: .45; }
 .role-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--line); }
 .role-user { overflow: hidden; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
 input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); transition: border-color .18s ease-out, box-shadow .18s ease-out; }

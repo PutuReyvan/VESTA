@@ -61,7 +61,7 @@ Supabase Auth Web3 authenticates the wallet through a Sign-In with Ethereum mess
 
 Allocation, released, vested, claimable, beneficiary schedule IDs, and schedule status stay on the contract. Claims execute from the beneficiary wallet and transfer directly to that beneficiary. A relayer must never receive or custody vested tokens.
 
-The first wallet sign-in opens the recipient profile form so the user can save a display name. Schedule IDs on the current deployment start at 1. Contract and token addresses are loaded from environment variables and shortened in the UI; they are never embedded as frontend constants.
+The first wallet sign-in receives the `Employee` application role automatically and opens the recipient profile form so the user can save a display name. After saving, the editor collapses and the saved name appears in the profile/sidebar and admin member directory. Schedule IDs on the current deployment start at 1. Contract and token addresses are loaded from environment variables and shortened in the UI; they are never embedded as frontend constants.
 
 ## Supabase keepalive
 

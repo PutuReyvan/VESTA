@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { StatCard } from '../components/ui/StatCard'
-import { IconCash, IconDeviceFloppy, IconHandStop, IconLock, IconTrash } from '@tabler/icons-react'
+import { IconCash, IconDeviceFloppy, IconHandStop, IconLock } from '@tabler/icons-react'
 import { Stagger, StaggerItem } from '../motion/primitives'
 import { motion } from 'motion/react'
 import type { ContractSchedule } from '../offchain/types'
-import type { DatabaseClient, RecipientProfile } from '../offchain/types'
+import { formatRole, type DatabaseClient, type RecipientProfile } from '../offchain/types'
 import { OffchainService } from '../offchain/service'
 import { supabase } from '../features/auth/supabase'
 import { useAuth } from '../features/auth/useAuth'
@@ -47,6 +47,7 @@ export function VestingPage() {
   const [profileError, setProfileError] = useState<string | null>(null)
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null)
   const [tokenDecimals, setTokenDecimals] = useState(18)
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false)
 
   useEffect(() => {
     if (!account || !user || !supabase) return
@@ -62,6 +63,7 @@ export function VestingPage() {
         setProfile(loaded)
         setDisplayName(loaded?.displayName ?? '')
         setEmployeeReference(loaded?.employeeReference ?? '')
+        setProfileEditorOpen(!loaded)
       } catch (loadError) {
         if (!cancelled) setProfileError(loadError instanceof Error ? loadError.message : 'Failed to read recipient profile.')
       } finally {
@@ -175,25 +177,10 @@ export function VestingPage() {
       setProfile(saved)
       setDisplayName(saved.displayName)
       setEmployeeReference(saved.employeeReference ?? '')
+      setProfileEditorOpen(false)
+      window.dispatchEvent(new CustomEvent('vesta:profile-updated', { detail: { displayName: saved.displayName } }))
     } catch (saveError) {
       setProfileError(saveError instanceof Error ? saveError.message : 'Failed to save recipient profile.')
-    } finally {
-      setProfileSaving(false)
-    }
-  }
-
-  async function deleteProfile() {
-    if (!profile || !supabase) return
-    setProfileSaving(true)
-    setProfileError(null)
-    try {
-      const service = new OffchainService(supabase as unknown as DatabaseClient)
-      await service.removeProfile(profile.userId)
-      setProfile(null)
-      setDisplayName('')
-      setEmployeeReference('')
-    } catch (deleteError) {
-      setProfileError(deleteError instanceof Error ? deleteError.message : 'Failed to delete recipient profile.')
     } finally {
       setProfileSaving(false)
     }
@@ -205,30 +192,46 @@ export function VestingPage() {
       <p className="contract-line" title={managerAddress}>Contract: {managerAddress ? shortenAddress(managerAddress) : 'VITE_CONTRACT_ADDRESS missing'}</p>
       {error && <p className="modal-error" role="alert">{error}</p>}
       {!account && <p className="muted">Connect the beneficiary wallet to load schedules.</p>}
-      {loading && <p className="muted">Reading live vesting data...</p>}
-      {!loading && account && schedules.length === 0 && <p className="muted">No schedules are assigned to this wallet.</p>}
-      <Card>
-        <h2>Recipient Profile</h2>
-        <p className="contract-line">Off-chain metadata is stored in Supabase. Vesting balances and claims remain on-chain.</p>
-        <div className="tag-row profile-summary" aria-label="Wallet summary">
-          <span title={account ?? undefined}>Wallet {account ? shortenAddress(account) : 'Not connected'}</span>
-          <span>Role {roles.length > 0 ? roles.join(', ').replaceAll('_', ' ') : 'No role assigned'}</span>
-          <span>VESTA {tokenBalance === null ? '—' : formatTokenAmount(tokenBalance, tokenDecimals)}</span>
-        </div>
-        {profileLoading && <p className="muted">Reading profile...</p>}
-        {profileError && <p className="modal-error" role="alert">{profileError}</p>}
-        {account && user && supabase ? (
-          <div className="profile-form">
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" aria-label="Display name" />
-            <input value={employeeReference} onChange={(event) => setEmployeeReference(event.target.value)} placeholder="Employee reference (optional)" aria-label="Employee reference" />
-            <div className="profile-actions">
-              <Button type="button" onClick={() => void saveProfile()} disabled={profileSaving} icon={<IconDeviceFloppy size={18} stroke={2} />}>
-                {profileSaving ? 'Saving...' : profile ? 'Update Profile' : 'Save Profile'}
-              </Button>
-              {profile && <Button type="button" variant="secondary" onClick={() => void deleteProfile()} disabled={profileSaving} icon={<IconTrash size={18} stroke={2} />}>Delete</Button>}
-            </div>
+      {(profileEditorOpen || !profile) ? (
+        <Card>
+          <h2>{profile ? 'Update Profile' : 'Complete Profile'}</h2>
+          <p className="contract-line">Save a display name once. It will appear in your profile and member directory.</p>
+          <div className="tag-row profile-summary" aria-label="Wallet summary">
+            <span title={account ?? undefined}>Wallet {account ? shortenAddress(account) : 'Not connected'}</span>
+            <span>Role {roles.length > 0 ? roles.map(formatRole).join(', ') : 'Employee'}</span>
+            <span>VESTA {tokenBalance === null ? '—' : formatTokenAmount(tokenBalance, tokenDecimals)}</span>
           </div>
-        ) : <p className="muted">Login with the wallet to manage your profile.</p>}
+          {profileLoading && <p className="muted">Reading profile...</p>}
+          {profileError && <p className="modal-error" role="alert">{profileError}</p>}
+          {account && user && supabase ? (
+            <div className="profile-form">
+              <label className="profile-field">Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" aria-label="Display name" /></label>
+              <label className="profile-field">Employee reference <span>(optional)</span><input value={employeeReference} onChange={(event) => setEmployeeReference(event.target.value)} placeholder="Employee reference" aria-label="Employee reference" /></label>
+              <div className="profile-actions">
+                <Button type="button" onClick={() => void saveProfile()} disabled={profileSaving} icon={<IconDeviceFloppy size={18} stroke={2} />}>
+                  {profileSaving ? 'Saving...' : 'Save Profile'}
+                </Button>
+                {profile && <Button type="button" variant="secondary" onClick={() => setProfileEditorOpen(false)} disabled={profileSaving}>Cancel</Button>}
+              </div>
+            </div>
+          ) : <p className="muted">Login with the wallet to manage your profile.</p>}
+        </Card>
+      ) : (
+        <Card className="profile-saved-card">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Profile</p>
+              <h2>{profile.displayName}</h2>
+              <p className="contract-line">{shortenAddress(profile.walletAddress)} · {roles.length > 0 ? roles.map(formatRole).join(', ') : 'Employee'}</p>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => setProfileEditorOpen(true)}>Update Profile</Button>
+          </div>
+        </Card>
+      )}
+      <Card className="assigned-schedules">
+        <h2>Schedules Assigned</h2>
+        {loading && <p className="muted">Reading live vesting data...</p>}
+        {!loading && account && schedules.length === 0 && <p className="muted">Nothing assigned yet.</p>}
       </Card>
       <Stagger className="vesting-grid">
         {schedules.map((schedule) => {

@@ -38,6 +38,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
 
+    const { error: defaultRoleError } = await supabase.rpc("ensure_default_employee_role");
+    if (defaultRoleError) {
+      setError(defaultRoleError.message);
+      setRoles([]);
+      return;
+    }
+
     const { data, error: roleError } = await supabase
       .from("user_roles")
       .select("role")

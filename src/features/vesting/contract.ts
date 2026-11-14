@@ -9,6 +9,7 @@ import {
 import type { ContractSchedule } from '../../offchain/types'
 
 const managerAbi = [
+  'function MAX_BATCH_SIZE() view returns (uint256)',
   'function token() view returns (address)',
   'function admin() view returns (address)',
   'function nextScheduleId() view returns (uint256)',
