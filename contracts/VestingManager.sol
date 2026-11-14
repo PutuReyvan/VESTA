@@ -13,7 +13,10 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     mapping(uint256 => Schedule) internal schedules;
     mapping(address => uint256[]) internal beneficiaryScheduleIds;
 
+    // Public names intentionally match the IVestingManager getter ABI.
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable override token;
+    // solhint-disable-next-line immutable-vars-naming
     address public immutable override admin;
     uint256 public override nextScheduleId;
 
@@ -192,7 +195,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     ) internal view returns (uint256) {
         uint256 start = uint256(schedule.start);
         uint256 cliffEnd = start + uint256(schedule.cliff);
-        uint vestingEnd = start + uint256(schedule.duration);
+        uint256 vestingEnd = start + uint256(schedule.duration);
         uint256 nowTime = block.timestamp;
 
         if (nowTime < start || nowTime < cliffEnd) {

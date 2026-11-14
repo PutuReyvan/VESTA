@@ -1,19 +1,25 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
+import {
+  MockERC20__factory,
+  VestingManager__factory,
+} from "../typechain-types";
 
 describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
   async function deployVestingFixture() {
     const [admin, beneficiary1, beneficiary2, unauthorized] =
       await ethers.getSigners();
 
-    const MockERC20 = await ethers.getContractFactory("MockERC20");
-    const token = await MockERC20.deploy();
-
-    const VestingManager = await ethers.getContractFactory("VestingManager");
-    const vestingManager = await VestingManager.deploy(
+    const token = await new MockERC20__factory(admin).deploy();
+    await token.waitForDeployment();
+    const vestingManager = await new VestingManager__factory(admin).deploy(
       await token.getAddress(),
     );
+    await vestingManager.waitForDeployment();
+
+    // Approval only grants spending permission; the fixture must also fund admin.
+    await token.mint(admin.address, ethers.parseEther("10000"));
 
     return {
       vestingManager,

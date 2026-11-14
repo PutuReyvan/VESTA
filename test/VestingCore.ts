@@ -6,7 +6,7 @@ describe("VestingManager vesting core", function () {
     const [admin, beneficiary, other] = await ethers.getSigners();
     const token = await ethers.deployContract("MockERC20");
     const manager = await ethers.deployContract("VestingManager", [
-      token.target
+      token.target,
     ]);
 
     const latest = await ethers.provider.getBlock("latest");
@@ -22,11 +22,12 @@ describe("VestingManager vesting core", function () {
       [amount],
       [start],
       [0],
-      [100]
+      [100],
     );
 
+    const claim = manager.connect(other).getFunction("claim");
     await expect(
-      manager.connect(other).claim(0)
+      claim(0),
     ).to.be.revertedWithCustomError(manager, "Unauthorized");
   });
 
@@ -34,7 +35,7 @@ describe("VestingManager vesting core", function () {
     const [admin, beneficiary] = await ethers.getSigners();
     const token = await ethers.deployContract("MockERC20");
     const manager = await ethers.deployContract("VestingManager", [
-      token.target
+      token.target,
     ]);
 
     const latest = await ethers.provider.getBlock("latest");
@@ -50,11 +51,12 @@ describe("VestingManager vesting core", function () {
       [amount],
       [start],
       [50],
-      [100]
+      [100],
     );
 
+    const claim = manager.connect(beneficiary).getFunction("claim");
     await expect(
-      manager.connect(beneficiary).claim(0)
+      claim(0),
     ).to.be.revertedWithCustomError(manager, "NothingToClaim");
   });
 });

@@ -13,13 +13,12 @@ describe("VestingManager foundation", function () {
     expect(await manager.nextScheduleId()).to.equal(0n);
   });
 
-  // This test prevents unfinished paths from looking like working MVP behavior.
-  it("exposes the stable contract seam without pre-implementing teammate behavior", async function () {
+  it("rejects an empty batch", async function () {
     const token = await ethers.deployContract("MockERC20");
     const manager = await ethers.deployContract("VestingManager", [token.target]);
 
     await expect(
       manager.createBatch(token.target, [], [], [], [], [])
-    ).to.be.revertedWithCustomError(manager, "NotImplemented");
+    ).to.be.revertedWithCustomError(manager, "EmptyBatch");
   });
 });
