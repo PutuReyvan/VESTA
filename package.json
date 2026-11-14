@@ -13,6 +13,7 @@
     "test:coverage": "hardhat coverage",
     "lint": "solhint \"contracts/**/*.sol\" && eslint .",
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:token:sepolia": "hardhat run scripts/deploy-token.ts --network sepolia",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "clean": "hardhat clean"
   },

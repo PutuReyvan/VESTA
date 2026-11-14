@@ -29,6 +29,9 @@ const config: HardhatUserConfig = {
       url: process.env.SEPOLIA_RPC_URL ?? "",
       accounts
     }
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY ?? ""
   }
 };
 

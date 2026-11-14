@@ -64,10 +64,11 @@ Allocation, released, vested, claimable, beneficiary schedule IDs, and schedule 
 Sepolia hosts the smart contracts only. Deploy an approved demo ERC-20 first, then set `VESTA_TOKEN_ADDRESS` and run:
 
 ```sh
+npm run deploy:token:sepolia
 npm run deploy:sepolia
 ```
 
-Record the printed manager address as `VESTA_MANAGER_ADDRESS`, set the same RPC URL as `VESTA_RPC_URL`, apply the Supabase migration, enable Supabase Web3 Auth, and seed the first `company_admin` role. The local `MockERC20` is intentionally unsafe and local-only.
+Copy the printed token address into `VESTA_TOKEN_ADDRESS` and `VITE_TOKEN_ADDRESS`, then run the manager deployment. Copy its printed address into `VESTA_MANAGER_ADDRESS` and `VITE_CONTRACT_ADDRESS`; set the same RPC URL as `VESTA_RPC_URL`. Verify both contracts with Hardhat after deployment. The local `MockERC20` is intentionally unsafe and local-only.
 
 ## Limitations
 
