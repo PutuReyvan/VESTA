@@ -142,9 +142,12 @@ export function WalletProvider({ children }: PropsWithChildren) {
         ? accounts[0]
         : null
       if (!account) {
+        window.dispatchEvent(new CustomEvent('vesta:wallet-account-changed', { detail: { account: null } }))
         disconnect()
         return
       }
+
+      window.dispatchEvent(new CustomEvent('vesta:wallet-account-changed', { detail: { account } }))
 
       setState((current) => ({
         ...current,

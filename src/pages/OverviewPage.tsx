@@ -24,26 +24,44 @@ type BatchHistory = {
   txHash: string
   blockNumber: number
   admin: string
+  firstScheduleId: bigint
   scheduleCount: bigint
   totalAllocation: bigint
 }
 
 export function OverviewPage() {
-  const { account } = useWallet()
+  const { account, status } = useWallet()
   const [schedules, setSchedules] = useState<LoadedSchedule[]>([])
   const [decimals, setDecimals] = useState(18)
   const [managerAdmin, setManagerAdmin] = useState<string | null>(null)
   const [managerBalance, setManagerBalance] = useState<bigint>(0n)
   const [batchHistory, setBatchHistory] = useState<BatchHistory[]>([])
+  const [historyUnavailable, setHistoryUnavailable] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
+  const [now, setNow] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    const refreshTime = () => {
+      if (document.visibilityState === 'visible') {
+        setNow(BigInt(Math.floor(Date.now() / 1000)))
+        setRefresh((current) => current + 1)
+      }
+    }
+    const interval = window.setInterval(refreshTime, 15_000)
+    document.addEventListener('visibilitychange', refreshTime)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshTime)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
     async function loadContractData() {
-      if (!account) {
+      if (!account || status !== 'connected') {
         setSchedules([])
         setManagerAdmin(null)
         setManagerBalance(0n)
@@ -53,6 +71,7 @@ export function OverviewPage() {
 
       setLoading(true)
       setError(null)
+      setHistoryUnavailable(false)
       try {
         const provider = getBrowserProvider()
         const manager = getManagerContract(provider)
@@ -81,12 +100,14 @@ export function OverviewPage() {
             txHash: log.transactionHash,
             blockNumber: log.blockNumber,
             admin: String(log.args?.[0] ?? ''),
-            scheduleCount: BigInt(log.args?.[1] ?? 0),
-            totalAllocation: BigInt(log.args?.[2] ?? 0),
+            firstScheduleId: BigInt(log.args?.[1] ?? 0),
+            scheduleCount: BigInt(log.args?.[2] ?? 0),
+            totalAllocation: BigInt(log.args?.[3] ?? 0),
           })).reverse()
         } catch {
           // Some public RPC endpoints restrict historical log queries. Schedule
           // data remains authoritative when this count is unavailable.
+          if (!cancelled) setHistoryUnavailable(true)
         }
 
         if (cancelled) return
@@ -106,7 +127,7 @@ export function OverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [account])
+  }, [account, refresh, status])
 
   const totalReleased = schedules.reduce((total, schedule) => total + schedule.released, 0n)
   const isAdmin = Boolean(account && managerAdmin && isOnChainAdmin(account, managerAdmin))
@@ -127,7 +148,7 @@ export function OverviewPage() {
         <StatCard label="Locked In Contract" value={formatTokenAmount(managerBalance, decimals)} icon={<IconLock size={17} stroke={1.8} />} />
         <StatCard label="Total Released" value={formatTokenAmount(totalReleased, decimals)} icon={<IconCash size={17} stroke={1.8} />} />
         <StatCard label="Schedules" value={String(schedules.length)} icon={<IconCalendar size={17} stroke={1.8} />} />
-        <StatCard label="Batches" value={String(batchHistory.length)} icon={<IconUsers size={17} stroke={1.8} />} />
+        <StatCard label="Batches" value={historyUnavailable ? '—' : String(batchHistory.length)} icon={<IconUsers size={17} stroke={1.8} />} />
       </Stagger>
       <Reveal>
         <Card>
@@ -158,12 +179,14 @@ export function OverviewPage() {
           <h2>Batch History</h2>
           <div className="table">
             <div className="table-row batch-history-row table-header">
-              <span>Block</span><span>Schedules</span><span>Allocation</span><span>Admin</span><span>Transaction</span>
+              <span>Block</span><span>First ID</span><span>Schedules</span><span>Allocation</span><span>Admin</span><span>Transaction</span>
             </div>
             {batchHistory.length === 0 && !loading && <p className="muted">No batch events found on this deployment.</p>}
+            {historyUnavailable && <p className="muted">Batch history is unavailable from the current RPC. Schedule data above is still live.</p>}
             {batchHistory.map((batch) => (
               <div className="table-row batch-history-row" key={batch.txHash}>
                 <span>{batch.blockNumber}</span>
+                <span>#{batch.firstScheduleId.toString()}</span>
                 <span>{batch.scheduleCount.toString()}</span>
                 <span>{formatTokenAmount(batch.totalAllocation, decimals)}</span>
                 <span>{shortenAddress(batch.admin)}</span>

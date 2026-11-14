@@ -5,6 +5,7 @@ import {IVestingManager} from "./interfaces/IVestingManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title VESTA Vesting Manager
 contract VestingManager is IVestingManager, ReentrancyGuard {
@@ -59,7 +60,8 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
         }
 
         uint256 totalAllocation = 0;
-        uint256 currentId = nextScheduleId;
+        uint256 firstScheduleId = nextScheduleId;
+        uint256 currentId = firstScheduleId;
 
         for (uint256 i = 0; i < count; ++i) {
             address beneficiary = beneficiaries[i];
@@ -112,59 +114,12 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
             balanceBefore;
         if (received != totalAllocation) revert InvalidAllocation();
 
-        emit BatchCreated(msg.sender, count, totalAllocation);
-    }
-
-    function updateScheduleTerms(
-        uint256 scheduleId,
-        uint64 newCliff,
-        uint64 newDuration
-    ) external override {
-        if (msg.sender != admin) revert Unauthorized();
-
-        Schedule storage schedule = schedules[scheduleId];
-        if (schedule.beneficiary == address(0))
-            revert ScheduleNotFound(scheduleId);
-        if (schedule.allocation == 0)
-            revert ScheduleAlreadyCancelled(scheduleId);
-        if (block.timestamp >= schedule.start)
-            revert ScheduleAlreadyStarted(
-                scheduleId,
-                schedule.start,
-                block.timestamp
-            );
-        if (newDuration == 0 || newCliff > newDuration)
-            revert InvalidScheduleTerms(newCliff, newDuration);
-        if (uint256(schedule.start) + uint256(newDuration) > type(uint64).max)
-            revert InvalidScheduleTerms(newCliff, newDuration);
-
-        schedule.cliff = newCliff;
-        schedule.duration = newDuration;
-
-        emit ScheduleTermsUpdated(scheduleId, newCliff, newDuration);
-    }
-
-    function cancelSchedule(uint256 scheduleId) external override {
-        if (msg.sender != admin) revert Unauthorized();
-
-        Schedule storage schedule = schedules[scheduleId];
-        if (schedule.beneficiary == address(0))
-            revert ScheduleNotFound(scheduleId);
-
-        uint256 refundAmount = schedule.allocation;
-        if (refundAmount == 0) revert ScheduleAlreadyCancelled(scheduleId);
-        if (block.timestamp >= schedule.start)
-            revert ScheduleAlreadyStarted(
-                scheduleId,
-                schedule.start,
-                block.timestamp
-            );
-
-        schedule.allocation = 0;
-
-        IERC20(token).safeTransfer(admin, refundAmount);
-
-        emit ScheduleCancelled(scheduleId, schedule.beneficiary, refundAmount);
+        emit BatchCreated(
+            msg.sender,
+            firstScheduleId,
+            count,
+            totalAllocation
+        );
     }
 
     // =========================================================================
@@ -219,7 +174,11 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
         }
 
         uint256 elapsed = nowTime - start;
-        return (schedule.allocation * elapsed) / uint256(schedule.duration);
+        return Math.mulDiv(
+            schedule.allocation,
+            elapsed,
+            uint256(schedule.duration)
+        );
     }
 
     function claimableAmount(
@@ -247,8 +206,21 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
             revert NothingToClaim();
         }
 
+        uint256 beneficiaryBalanceBefore = IERC20(token).balanceOf(
+            schedule.beneficiary
+        );
         schedule.released += amount;
         IERC20(token).safeTransfer(schedule.beneficiary, amount);
+
+        uint256 beneficiaryBalanceAfter = IERC20(token).balanceOf(
+            schedule.beneficiary
+        );
+        uint256 received = beneficiaryBalanceAfter > beneficiaryBalanceBefore
+            ? beneficiaryBalanceAfter - beneficiaryBalanceBefore
+            : 0;
+        if (received != amount) {
+            revert InvalidClaimTransfer(amount, received);
+        }
         emit Claimed(scheduleId, schedule.beneficiary, amount);
     }
 }

@@ -106,6 +106,10 @@ export interface OffchainDatabase {
         Args: Record<string, never>;
         Returns: boolean;
       };
+      ensure_wallet_identity: {
+        Args: Record<string, never>;
+        Returns: string;
+      };
       assign_role_by_wallet: {
         Args: { target_wallet: string; target_role: ApplicationRole };
         Returns: string;

@@ -31,17 +31,11 @@ interface IVestingManager {
     error InvalidBeneficiary();
     error InvalidAllocation();
     error InvalidScheduleTerms(uint64 cliff, uint64 duration);
-    error ScheduleNotFound(uint256 scheduleId);
-    error ScheduleAlreadyStarted(
-        uint256 scheduleId,
-        uint64 start,
-        uint256 currentTimestamp
-    );
-    error ScheduleAlreadyCancelled(uint256 scheduleId);
-
+    error InvalidClaimTransfer(uint256 expected, uint256 received);
     // Events
     event BatchCreated(
         address indexed admin,
+        uint256 indexed firstScheduleId,
         uint256 scheduleCount,
         uint256 totalAllocation
     );
@@ -52,16 +46,6 @@ interface IVestingManager {
         uint64 start,
         uint64 cliff,
         uint64 duration
-    );
-    event ScheduleTermsUpdated(
-        uint256 indexed scheduleId,
-        uint64 newCliff,
-        uint64 newDuration
-    );
-    event ScheduleCancelled(
-        uint256 indexed scheduleId,
-        address indexed beneficiary,
-        uint256 refundedAllocation
     );
     event Claimed(
         uint256 indexed scheduleId,
@@ -86,13 +70,6 @@ interface IVestingManager {
         uint64[] calldata cliffs,
         uint64[] calldata durations
     ) external;
-    function updateScheduleTerms(
-        uint256 scheduleId,
-        uint64 newCliff,
-        uint64 newDuration
-    ) external;
-    function cancelSchedule(uint256 scheduleId) external;
-
     function getSchedule(
         uint256 scheduleId
     ) external view returns (Schedule memory);

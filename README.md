@@ -17,7 +17,7 @@ This repository contains the implemented contract core, Supabase Web3 Auth/RLS b
 - Wallet-based role assignment: the target wallet must sign in once, then a company admin can assign `hr_operator`, `employee`, or `auditor` without exposing Supabase UUIDs in the UI.
 - Admin Overview, Create Batch, and My Vesting screens.
 
-ERC-20 approval is a separate transaction when allowance is insufficient. Atomicity applies to funding and creation inside `createBatch()`. Native currency pays gas only. Schedules can be updated or cancelled only before their start. The off-chain database stores identity, roles, and recipient metadata; it never becomes vesting truth. Multi-token support is outside the MVP.
+ERC-20 approval is a separate transaction when allowance is insufficient. Atomicity applies to funding and creation inside `createBatch()`. Native currency pays gas only. Schedule fields are immutable after creation. The off-chain database stores identity, roles, and recipient metadata; it never becomes vesting truth. Multi-token support is outside the MVP.
 
 ## Setup
 
@@ -81,7 +81,7 @@ npm run deploy:token:sepolia
 npm run deploy:sepolia
 ```
 
-Copy the printed token address into `VESTA_TOKEN_ADDRESS` and `VITE_TOKEN_ADDRESS`, then run the manager deployment. Copy its printed address into `VESTA_MANAGER_ADDRESS` and `VITE_CONTRACT_ADDRESS`; set the same RPC URL as `VESTA_RPC_URL`. Verify both contracts with Hardhat after deployment. The local `MockERC20` is intentionally unsafe and local-only.
+Copy the printed token address into `VESTA_TOKEN_ADDRESS` and `VITE_TOKEN_ADDRESS`, then run the manager deployment. Copy its printed address and deployment block into `VESTA_MANAGER_ADDRESS`, `VITE_CONTRACT_ADDRESS`, and `VITE_DEPLOYMENT_BLOCK`; set the same RPC URL as `VESTA_RPC_URL`. Verify both contracts with Hardhat after deployment. The local `MockERC20` is intentionally unsafe and local-only.
 
 ## Limitations
 

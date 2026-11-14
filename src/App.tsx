@@ -46,7 +46,7 @@ function App() {
       <LayoutShell route={activeRoute} onNavigate={setRoute}>
         {activeRoute === 'overview' && <OverviewPage />}
         {activeRoute === 'my-vesting' && <VestingPage />}
-        {activeRoute === 'create-batch' && <CreateBatchPage />}
+        {activeRoute === 'create-batch' && <CreateBatchPage onBack={() => setRoute('overview')} />}
         {activeRoute === 'role-management' && <RoleManagementPage />}
       </LayoutShell>
     )

@@ -35,8 +35,8 @@ function emptyRow(beneficiary = ''): BatchRow {
   }
 }
 
-export function CreateBatchPage() {
-  const { account } = useWallet()
+export function CreateBatchPage({ onBack }: { onBack?: () => void }) {
+  const { account, status } = useWallet()
   const [rows, setRows] = useState<BatchRow[]>([emptyRow()])
   const [decimals, setDecimals] = useState(18)
   const [balance, setBalance] = useState(0n)
@@ -54,7 +54,13 @@ export function CreateBatchPage() {
     let cancelled = false
 
     async function loadWalletState() {
-      if (!account) return
+      if (!account || status !== 'connected') {
+        setManagerAdmin(null)
+        setMaxBatchSize(null)
+        setBalance(0n)
+        setAllowance(0n)
+        return
+      }
       setLoading(true)
       setError(null)
       try {
@@ -85,7 +91,7 @@ export function CreateBatchPage() {
     return () => {
       cancelled = true
     }
-  }, [account, refresh])
+  }, [account, refresh, status])
 
   const effectiveRows = useMemo(
     () => rows.map((row, index) => index === 0 && !row.beneficiary && account ? { ...row, beneficiary: account } : row),
@@ -139,33 +145,29 @@ export function CreateBatchPage() {
     }
   }
 
-  async function approve() {
-    setAction('approving')
+  async function submitBatch() {
+    if (!account) return
     setError(null)
     setTxHash(null)
     setConfirmed(false)
-    try {
-      const token = getTokenContract(await getSigner())
-      const transaction = await token.approve(managerAddress, totalAllocation)
-      setTxHash(transaction.hash)
-      await transaction.wait()
-      setConfirmed(true)
-      setRefresh((current) => current + 1)
-    } catch (approvalError) {
-      setError(approvalError instanceof Error ? approvalError.message : 'Token approval failed.')
-    } finally {
-      setAction('idle')
-    }
-  }
 
-  async function createBatch() {
-    setAction('creating')
-    setError(null)
-    setTxHash(null)
-    setConfirmed(false)
-    try {
+    const run = async () => {
       const payload = buildPayload()
-      const manager = getManagerContract(await getSigner())
+      const requiredAllowance = totalAllocation
+      if (requiredAllowance === null) throw new Error('Total allocation must be a valid token amount.')
+      const signer = await getSigner()
+      const token = getTokenContract(signer)
+      const currentAllowance = BigInt(await token.allowance(account, managerAddress))
+
+      if (currentAllowance < requiredAllowance) {
+        setAction('approving')
+        const approval = await token.approve(managerAddress, requiredAllowance)
+        setTxHash(approval.hash)
+        await approval.wait()
+      }
+
+      setAction('creating')
+      const manager = getManagerContract(signer)
       const transaction = await manager.createBatch(
         tokenAddress,
         payload.beneficiaries,
@@ -178,8 +180,19 @@ export function CreateBatchPage() {
       await transaction.wait()
       setConfirmed(true)
       setRefresh((current) => current + 1)
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Create batch transaction failed.')
+    }
+
+    try {
+      // Prevent two VESTA tabs for the same wallet from overwriting each
+      // other's exact ERC-20 allowance between approval and createBatch.
+      const locks = (navigator as Navigator & { locks?: LockManager }).locks
+      if (locks) {
+        await locks.request(`vesta-batch:${account.toLowerCase()}`, { mode: 'exclusive' }, run)
+      } else {
+        await run()
+      }
+    } catch (batchError) {
+      setError(batchError instanceof Error ? batchError.message : 'Create batch transaction failed.')
     } finally {
       setAction('idle')
     }
@@ -187,7 +200,7 @@ export function CreateBatchPage() {
 
   return (
     <div className="page-frame create-batch-page">
-      <button className="back-button" type="button"><IconArrowLeft size={17} stroke={2} /> Back</button>
+      <button className="back-button" type="button" onClick={onBack}><IconArrowLeft size={17} stroke={2} /> Back</button>
       <h1>Create Batch</h1>
       <p className="contract-line" title={managerAddress}>Manager: {managerAddress ? shortenAddress(managerAddress) : 'VITE_CONTRACT_ADDRESS missing'}</p>
       <p className="contract-line" title={tokenAddress}>Token: {tokenAddress ? shortenAddress(tokenAddress) : 'VITE_TOKEN_ADDRESS missing'}</p>
@@ -232,10 +245,10 @@ export function CreateBatchPage() {
           variant="success"
           className="full-width"
           icon={<IconCheck size={18} stroke={2} />}
-          disabled={!account || !isAdmin || !maxBatchSize || !hasCompleteRows || totalAllocation === null || totalAllocation <= 0n || action !== 'idle'}
-          onClick={() => void (needsApproval ? approve() : createBatch())}
+          disabled={!account || status !== 'connected' || !isAdmin || !maxBatchSize || !hasCompleteRows || totalAllocation === null || totalAllocation <= 0n || action !== 'idle'}
+          onClick={() => void submitBatch()}
         >
-          {action === 'approving' ? 'Approving...' : action === 'creating' ? 'Creating...' : needsApproval ? 'Approve' : 'Create Batch'}
+          {action === 'approving' ? 'Approving...' : action === 'creating' ? 'Creating...' : needsApproval ? 'Approve & Create' : 'Create Batch'}
         </Button>
       </Card>
     </div>

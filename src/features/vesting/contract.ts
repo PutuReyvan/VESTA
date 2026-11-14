@@ -19,7 +19,7 @@ const managerAbi = [
   'function vestedAmount(uint256) view returns (uint256)',
   'function claimableAmount(uint256) view returns (uint256)',
   'function claim(uint256)',
-  'event BatchCreated(address indexed admin,uint256 scheduleCount,uint256 totalAllocation)',
+  'event BatchCreated(address indexed admin,uint256 indexed firstScheduleId,uint256 scheduleCount,uint256 totalAllocation)',
 ] as const
 
 const tokenAbi = [
@@ -56,7 +56,12 @@ export function getTokenContract(runner: ContractRunner) {
 }
 
 export async function getSigner() {
-  return getBrowserProvider().getSigner()
+  const provider = getBrowserProvider()
+  const network = await provider.getNetwork()
+  if (network.chainId !== BigInt(chainId)) {
+    throw new Error(`Switch to the configured chain before signing. Expected chain ${chainId}.`)
+  }
+  return provider.getSigner()
 }
 
 export async function readSchedule(manager: Contract, scheduleId: bigint): Promise<ContractSchedule> {

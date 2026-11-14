@@ -113,7 +113,7 @@ h2 { font-size: 24px; line-height: 1.2; margin-bottom: 20px; }
 .stat-value.accent { color: var(--green); }
 .table { overflow-x: auto; }
 .table-row { display: grid; grid-template-columns: .5fr 1.4fr 1fr 1fr 1fr 1fr; gap: 14px; align-items: center; min-width: 650px; padding: 14px 8px; border-bottom: 1px solid var(--line); }
-.batch-history-row { grid-template-columns: .7fr .8fr 1fr 1.2fr 1.2fr; min-width: 700px; }
+.batch-history-row { grid-template-columns: .7fr .8fr .8fr 1fr 1.2fr 1.2fr; min-width: 800px; }
 .batch-history-row a { color: var(--blue); font-weight: 600; text-decoration: none; }
 .batch-history-row a:hover { text-decoration: underline; }
 .table-row:last-child { border-bottom: 0; }

@@ -12,9 +12,11 @@ async function main() {
   // approval, batch funding, schedule reads, and beneficiary claims.
   const manager = await ethers.deployContract("VestingManager", [tokenAddress]);
   await manager.waitForDeployment();
+  const deploymentReceipt = await manager.deploymentTransaction()?.wait();
 
   console.log(`VestingManager deployed at ${manager.target}`);
   console.log(`Configured token: ${tokenAddress}`);
+  console.log(`Deployment block: ${deploymentReceipt?.blockNumber ?? "unknown"}`);
 }
 
 main().catch((error) => {

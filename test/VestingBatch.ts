@@ -60,8 +60,8 @@ describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
             durations,
           ),
       )
-        .to.emit(vestingManager, "BatchCreated")
-        .withArgs(admin.address, 2, totalAllocation)
+      .to.emit(vestingManager, "BatchCreated")
+        .withArgs(admin.address, 1, 2, totalAllocation)
         .and.to.emit(vestingManager, "ScheduleCreated");
 
       const contractBalance = await token.balanceOf(
@@ -159,66 +159,4 @@ describe("VestingManager: Atomic Batch & Lifecycle (Anggota 3)", function () {
     });
   });
 
-  describe("updateScheduleTerms", function () {
-    it("Should allow admin to update cliff and duration before start time", async function () {
-      const { vestingManager, token, admin, beneficiary1 } = await loadFixture(
-        deployVestingFixture,
-      );
-
-      const start = (await time.latest()) + 3600;
-      await token
-        .connect(admin)
-        .approve(await vestingManager.getAddress(), ethers.parseEther("100"));
-      await vestingManager
-        .connect(admin)
-        .createBatch(
-          await token.getAddress(),
-          [beneficiary1.address],
-          [ethers.parseEther("100")],
-          [start],
-          [1000],
-          [5000],
-        );
-
-      await expect(
-        vestingManager.connect(admin).updateScheduleTerms(1, 2000, 6000),
-      )
-        .to.emit(vestingManager, "ScheduleTermsUpdated")
-        .withArgs(1, 2000, 6000);
-    });
-  });
-
-  describe("cancelSchedule", function () {
-    it("Should logically delete the schedule and refund admin before start time", async function () {
-      const { vestingManager, token, admin, beneficiary1 } = await loadFixture(
-        deployVestingFixture,
-      );
-
-      const allocation = ethers.parseEther("100");
-      const start = (await time.latest()) + 3600;
-
-      await token
-        .connect(admin)
-        .approve(await vestingManager.getAddress(), allocation);
-      await vestingManager
-        .connect(admin)
-        .createBatch(
-          await token.getAddress(),
-          [beneficiary1.address],
-          [allocation],
-          [start],
-          [1000],
-          [5000],
-        );
-
-      const adminBalanceBefore = await token.balanceOf(admin.address);
-
-      await expect(vestingManager.connect(admin).cancelSchedule(1))
-        .to.emit(vestingManager, "ScheduleCancelled")
-        .withArgs(1, beneficiary1.address, allocation);
-
-      const adminBalanceAfter = await token.balanceOf(admin.address);
-      expect(adminBalanceAfter - adminBalanceBefore).to.equal(allocation);
-    });
-  });
 });

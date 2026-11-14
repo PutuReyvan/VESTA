@@ -62,4 +62,26 @@ describe("VestingManager boundary behavior", function () {
     expect((await manager.getSchedule(1)).released).to.equal(allocation);
     await expect(claim(1)).to.be.revertedWithCustomError(manager, "NothingToClaim");
   });
+
+  it("uses overflow-safe multiplication for large partial allocations", async function () {
+    const [admin, beneficiary] = await ethers.getSigners();
+    const token = await ethers.deployContract("MockERC20");
+    const manager = await ethers.deployContract("VestingManager", [token.target]);
+    const allocation = 1n << 255n;
+    const start = BigInt((await time.latest()) + 10);
+
+    await token.mint(admin.address, allocation);
+    await token.approve(manager.target, allocation);
+    await manager.createBatch(
+      token.target,
+      [beneficiary.address],
+      [allocation],
+      [start],
+      [0],
+      [200],
+    );
+
+    await time.increaseTo(Number(start + 100n));
+    expect(await manager.vestedAmount(1)).to.equal(allocation / 2n);
+  });
 });

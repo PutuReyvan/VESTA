@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -31,10 +32,35 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(
     supabase ? null : "Supabase Web3 Auth is not configured.",
   );
+  const roleLoadVersion = useRef(0);
 
   const loadRoles = useCallback(async (userId: string | null) => {
+    const requestVersion = ++roleLoadVersion.current;
     if (!supabase || !userId) {
       setRoles([]);
+      return;
+    }
+
+    const { data: verifiedWallet, error: identityError } = await supabase.rpc("ensure_wallet_identity");
+    if (identityError) {
+      setError(identityError.message);
+      setRoles([]);
+      return;
+    }
+
+    const provider = getEthereumProvider();
+    const accounts = provider
+      ? await provider.request({ method: "eth_accounts" })
+      : [];
+    const activeWallet = Array.isArray(accounts) && typeof accounts[0] === "string"
+      ? accounts[0]
+      : null;
+    if (!activeWallet || activeWallet.toLowerCase() !== verifiedWallet.toLowerCase()) {
+      if (requestVersion !== roleLoadVersion.current) return;
+      setSession(null);
+      setRoles([]);
+      setError("The connected wallet does not match this session. Sign in again.");
+      void supabase.auth.signOut();
       return;
     }
 
@@ -54,6 +80,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setRoles([]);
       return;
     }
+    if (requestVersion !== roleLoadVersion.current) return;
     setRoles(data.map((entry) => entry.role as ApplicationRole));
   }, []);
 
@@ -146,6 +173,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setSession(null);
     setRoles([]);
   }, []);
+
+  useEffect(() => {
+    const handleWalletAccountChanged = () => {
+      roleLoadVersion.current += 1;
+      if (session) {
+        // Clear the local identity before the async Supabase sign-out finishes.
+        // Otherwise the previous wallet can briefly retain authenticated UI and
+        // role-gated actions while the new account is already selected.
+        setSession(null);
+        setRoles([]);
+        void signOut();
+      }
+    };
+
+    window.addEventListener("vesta:wallet-account-changed", handleWalletAccountChanged);
+    return () => window.removeEventListener("vesta:wallet-account-changed", handleWalletAccountChanged);
+  }, [session, signOut]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

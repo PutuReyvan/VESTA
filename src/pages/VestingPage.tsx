@@ -30,7 +30,7 @@ function formatDate(timestamp: bigint) {
 }
 
 export function VestingPage() {
-  const { account } = useWallet()
+  const { account, status } = useWallet()
   const { user, roles } = useAuth()
   const [schedules, setSchedules] = useState<LoadedSchedule[]>([])
   const [decimals, setDecimals] = useState(18)
@@ -38,7 +38,7 @@ export function VestingPage() {
   const [claiming, setClaiming] = useState<bigint | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
-  const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
+  const [now, setNow] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
   const [profile, setProfile] = useState<RecipientProfile | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [employeeReference, setEmployeeReference] = useState('')
@@ -48,6 +48,21 @@ export function VestingPage() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null)
   const [tokenDecimals, setTokenDecimals] = useState(18)
   const [profileEditorOpen, setProfileEditorOpen] = useState(false)
+
+  useEffect(() => {
+    const refreshTime = () => {
+      if (document.visibilityState === 'visible') {
+        setNow(BigInt(Math.floor(Date.now() / 1000)))
+        setRefresh((current) => current + 1)
+      }
+    }
+    const interval = window.setInterval(refreshTime, 15_000)
+    document.addEventListener('visibilitychange', refreshTime)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshTime)
+    }
+  }, [])
 
   useEffect(() => {
     if (!account || !user || !supabase) return
@@ -82,6 +97,10 @@ export function VestingPage() {
     let cancelled = false
 
     async function loadTokenBalance() {
+      if (status !== 'connected') {
+        setTokenBalance(null)
+        return
+      }
       try {
         const token = getTokenContract(getBrowserProvider())
         const [balance, decimalsValue] = await Promise.all([
@@ -98,14 +117,15 @@ export function VestingPage() {
 
     void loadTokenBalance()
     return () => { cancelled = true }
-  }, [account])
+  }, [account, status])
 
   useEffect(() => {
     let cancelled = false
 
     async function loadSchedules() {
-      if (!account) {
+      if (!account || status !== 'connected') {
         setSchedules([])
+        setLoading(false)
         return
       }
 
@@ -140,9 +160,13 @@ export function VestingPage() {
     return () => {
       cancelled = true
     }
-  }, [account, refresh])
+  }, [account, refresh, status])
 
   async function claim(scheduleId: bigint) {
+    if (status !== 'connected') {
+      setError('Switch to Sepolia before claiming.')
+      return
+    }
     setClaiming(scheduleId)
     setError(null)
     try {
@@ -235,7 +259,7 @@ export function VestingPage() {
       </Card>
       <Stagger className="vesting-grid">
         {schedules.map((schedule) => {
-          const status = getScheduleStatus(schedule, now)
+          const scheduleStatus = getScheduleStatus(schedule, now)
           const elapsed = now > schedule.start ? now - schedule.start : 0n
           const progress = schedule.duration > 0n
             ? Math.min(12, Math.floor(Number((elapsed * 12n) / schedule.duration)))
@@ -262,8 +286,8 @@ export function VestingPage() {
               <StatCard label="Released" value={formatTokenAmount(schedule.released, decimals)} icon={<IconCash size={17} stroke={1.8} />} />
               <StatCard label="Claimable" value={formatTokenAmount(schedule.claimable, decimals)} icon={<IconHandStop size={17} stroke={1.8} />} accent />
             </div>
-            <Button variant={canClaim ? 'success' : 'secondary'} disabled={!canClaim || claiming !== null} className="full-width" icon={<IconHandStop size={18} stroke={2} />} onClick={() => void claim(schedule.scheduleId)}>
-              {claiming === schedule.scheduleId ? 'Confirming...' : canClaim ? 'Claim' : status}
+            <Button variant={canClaim ? 'success' : 'secondary'} disabled={status !== 'connected' || !canClaim || claiming !== null} className="full-width" icon={<IconHandStop size={18} stroke={2} />} onClick={() => void claim(schedule.scheduleId)}>
+              {claiming === schedule.scheduleId ? 'Confirming...' : canClaim ? 'Claim' : scheduleStatus}
             </Button>
           </Card>
           </StaggerItem>
