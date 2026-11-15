@@ -39,6 +39,10 @@ Run the frontend with:
 npm run dev
 ```
 
+## Frontend hosting
+
+The GitHub Pages workflow builds the Vite app from `main`. It reads browser-safe GitHub Actions variables named `VITE_CHAIN_ID`, `VITE_CONTRACT_ADDRESS`, `VITE_TOKEN_ADDRESS`, `VITE_DEPLOYMENT_BLOCK`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. Never store the deployer private key or Supabase service-role key in GitHub Variables or browser-prefixed variables.
+
 ## Repository layout
 
 | Path | Purpose |
