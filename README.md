@@ -65,12 +65,16 @@ The first wallet sign-in receives the `Employee` application role automatically 
 
 ## Supabase keepalive
 
-`.github/workflows/supabase-keepalive.yml` performs a small read-only REST request every 30 minutes. Configure these GitHub repository secrets before enabling it:
+`.github/workflows/supabase-keepalive.yml` calls a no-data, anonymous health RPC every 30 minutes. Configure these GitHub repository secrets before enabling it:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY` (or legacy `SUPABASE_ANON_KEY`)
 
-The workflow never uses the service-role key and does not write data. Scheduled GitHub jobs can be delayed or disabled by GitHub, and this workflow is not a guarantee against provider-level pausing or plan limits.
+The workflow never uses the service-role key, reads user data, or writes rows. Scheduled GitHub jobs can be delayed or disabled by GitHub, and this workflow is not a guarantee against provider-level pausing or plan limits.
+
+## Deployer key rotation
+
+If a deployer private key has ever been pasted into chat, committed, or stored in a shared screenshot, treat it as compromised even when it is no longer in the current branch. Create a new Sepolia-only wallet, fund it from a faucet, deploy a new token and manager with that wallet, update the local environment addresses, sign in with the new wallet, and assign it `Company Admin` before removing the old role. Never send the replacement private key to chat or commit it.
 
 ## Deployment
 

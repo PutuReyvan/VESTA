@@ -18,7 +18,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
     steps:
-      - name: Read one RLS-protected row
+      - name: Call no-data health RPC
         shell: bash
         run: |
           set -euo pipefail
@@ -26,7 +26,7 @@ jobs:
           test -n "${SUPABASE_URL}" || { echo "SUPABASE_URL secret is missing" >&2; exit 1; }
           test -n "${SUPABASE_KEY}" || { echo "SUPABASE_PUBLISHABLE_KEY or SUPABASE_ANON_KEY secret is missing" >&2; exit 1; }
 
-          endpoint="${SUPABASE_URL%/}/rest/v1/recipient_profiles?select=user_id&limit=1"
+          endpoint="${SUPABASE_URL%/}/rest/v1/rpc/keepalive_ping"
           response_file="$(mktemp)"
           trap 'rm -f "$response_file"' EXIT
 
@@ -34,6 +34,8 @@ jobs:
             --silent \
             --show-error \
             --fail-with-body \
+            --request POST \
+            --header 'Content-Type: application/json' \
             --retry 3 \
             --retry-delay 2 \
             --max-time 20 \
@@ -41,7 +43,8 @@ jobs:
             --write-out '%{http_code}' \
             "$endpoint" \
             --header "apikey: ${SUPABASE_KEY}" \
-            --header "Authorization: Bearer ${SUPABASE_KEY}")" || true
+            --header "Authorization: Bearer ${SUPABASE_KEY}" \
+            --data '{}')" || true
 
           if [[ "$status" != "200" ]]; then
             echo "Supabase REST request failed with HTTP ${status:-unknown}" >&2
