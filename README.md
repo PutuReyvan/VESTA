@@ -1,6 +1,49 @@
 # VESTA
 
-An ERC-20 vesting project for a five-person university team. The differentiating feature is **Atomic Batch Vesting**: create and fully fund multiple schedules in one all-or-nothing transaction.
+**VESTA** is a Sepolia demo dApp for managing ERC-20 employee vesting. Its core feature is **Atomic Batch Vesting**: one transaction either creates every schedule in a batch and locks the exact required token amount, or it reverts completely.
+
+**Live demo (Sepolia):** [vesta-gray-five.vercel.app](https://vesta-gray-five.vercel.app/)
+
+## What the app does
+
+An authorized company wallet creates a vesting batch for one or more recipient wallets. Each schedule has an allocation, start time, cliff, and duration. When a recipient's tokens have vested, that recipient claims directly to their own wallet; VESTA never routes vested assets through a relayer.
+
+- **On-chain:** ERC-20 custody, schedules, vesting math, claims, and the manager admin.
+- **Off-chain (Supabase):** wallet sign-in, display names, employee references, and application roles.
+- **Atomic batch guarantee:** an invalid row, failed allowance, or incorrect token amount rolls back the entire batch.
+
+## How to use VESTA
+
+### 1. Sign in with a wallet
+
+1. Install MetaMask or another injected EVM wallet, select **Ethereum Sepolia**, and keep a small amount of Sepolia ETH for gas.
+2. Open the live demo or run the project locally with `npm run dev`.
+3. Select **Login with Wallet** and sign the Sign-In with Ethereum message. Signing authenticates the session; it does not spend funds.
+4. On the first login, VESTA gives the wallet the **Employee** role and opens the profile form. Save a display name so admins can select the wallet by name later.
+
+### 2. Use the correct screen for your role
+
+| Role | What the user can do |
+| --- | --- |
+| **Company Admin** | View all schedules, manage off-chain roles, create a batch from the UI, and view personal vesting. |
+| **HR Operator** | View the company overview and personal vesting. |
+| **Employee** | Manage the recipient profile, see assigned schedules, and claim vested tokens. |
+| **Auditor** | View the company overview without batch-creation or role-management access. |
+
+> **Important:** `company_admin` is an off-chain app role. The wallet that submits `createBatch()` must also be the current on-chain `VestingManager.admin()` wallet. The contract enforces this independently of the UI.
+
+### 3. Create and fund an atomic batch (Company Admin)
+
+1. Go to **Create Batch** and add up to 20 recipient rows.
+2. For each row, choose or paste the recipient wallet, then enter the allocation, start time, cliff, and duration.
+3. Ensure the admin wallet holds enough VESTA. If its allowance is insufficient, select **Approve & Create**; the wallet first approves the manager, then creates the batch.
+4. Confirm the transaction(s) in the wallet. After a successful batch, every schedule is stored and the manager holds exactly the total allocation.
+
+### 4. Claim vested tokens (Employee)
+
+1. Sign in with the recipient wallet.
+2. Open **My Vesting** to see assigned schedules, vested amount, released amount, and currently claimable amount.
+3. Select **Claim** on an unlocked schedule and confirm the transaction. The contract transfers the claimed amount directly to that schedule's recorded recipient wallet.
 
 ## Current status
 
