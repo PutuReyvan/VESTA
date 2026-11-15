@@ -4,11 +4,11 @@ An ERC-20 vesting project for a five-person university team. The differentiating
 
 ## Current status
 
-This repository contains the implemented contract core, Supabase Web3 Auth/RLS boundary, and live Vite frontend flow. The local Sepolia demo has been deployed with a demo ERC-20, seeded `company_admin` role, and the approval → atomic batch → beneficiary claim path. Treat the deployment as an academic testnet instance, not a production deployment.
+This repository contains the implemented contract core, Supabase Web3 Auth/RLS boundary, and Vite frontend flow. A Sepolia demo uses a demo ERC-20, seeded `company_admin` role, and the approval → atomic batch → beneficiary claim path. Whenever contract source changes, deploy a new manager and update the environment addresses before claiming that the hosted demo matches this commit. Treat every deployment as an academic testnet instance, not a production deployment.
 
 ## MVP scope
 
-- One configured ERC-20 token and one immutable admin.
+- One configured ERC-20 token and one transferable on-chain manager admin.
 - Linear vesting from start, with an optional cliff before tokens become available.
 - Fully funded atomic batches; any invalid entry or failed funding reverts the entire batch.
 - Beneficiary-only claims directly to the recorded beneficiary.
@@ -75,6 +75,10 @@ The workflow never uses the service-role key, reads user data, or writes rows. S
 ## Deployer key rotation
 
 If a deployer private key has ever been pasted into chat, committed, or stored in a shared screenshot, treat it as compromised even when it is no longer in the current branch. Create a new Sepolia-only wallet, fund it from a faucet, deploy a new token and manager with that wallet, update the local environment addresses, sign in with the new wallet, and assign it `Company Admin` before removing the old role. Never send the replacement private key to chat or commit it.
+
+## On-chain admin rotation
+
+`company_admin` is an off-chain application role; it controls the VESTA UI and role-management RPCs. The manager's on-chain admin separately controls batch creation and excess-token recovery. To revoke that wallet's contract authority, the current on-chain admin must call `transferAdmin(newAdmin)` on `VestingManager`; removing a Supabase role alone is not enough. The contract rejects a zero address, emits `AdminTransferred`, and immediately removes the previous wallet's contract authority.
 
 ## Deployment
 

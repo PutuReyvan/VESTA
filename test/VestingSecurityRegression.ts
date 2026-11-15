@@ -43,6 +43,31 @@ describe("VestingManager security regressions", function () {
     ).to.be.revertedWithCustomError(manager, "Unauthorized");
   });
 
+  it("lets only the current admin transfer on-chain authority", async function () {
+    const { admin, other, manager } = await loadFixture(deployFixture);
+
+    const transferAsOther = manager.connect(other).getFunction("transferAdmin");
+    await expect(transferAsOther(other.address)).to.be.revertedWithCustomError(
+      manager,
+      "Unauthorized",
+    );
+
+    const transferAdmin = manager.getFunction("transferAdmin");
+    await expect(transferAdmin(ethers.ZeroAddress))
+      .to.be.revertedWithCustomError(manager, "InvalidAdmin")
+      .withArgs(ethers.ZeroAddress);
+
+    await expect(transferAdmin(other.address))
+      .to.emit(manager, "AdminTransferred")
+      .withArgs(admin.address, other.address);
+    expect(await manager.admin()).to.equal(other.address);
+
+    await expect(transferAdmin(admin.address)).to.be.revertedWithCustomError(
+      manager,
+      "Unauthorized",
+    );
+  });
+
   it("rejects funding with a token other than the configured token", async function () {
     const { beneficiary, otherToken, manager, allocation, start } =
       await loadFixture(deployFixture);

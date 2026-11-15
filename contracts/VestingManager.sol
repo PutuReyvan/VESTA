@@ -19,8 +19,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     // Public names intentionally match the IVestingManager getter ABI.
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override token;
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable override admin;
+    address public override admin;
     uint256 public override nextScheduleId;
     uint256 public override outstandingAllocation;
 
@@ -36,6 +35,18 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     // =========================================================================
     // ATOMIC BATCH & ON-CHAIN LIFECYCLE
     // =========================================================================
+
+    /// @notice Transfers batch-management authority to a new wallet.
+    /// @dev This is the on-chain deprovisioning path; database roles alone do
+    /// not revoke an existing manager admin's authority.
+    function transferAdmin(address newAdmin) external override {
+        if (msg.sender != admin) revert Unauthorized();
+        if (newAdmin == address(0)) revert InvalidAdmin(newAdmin);
+
+        address previousAdmin = admin;
+        admin = newAdmin;
+        emit AdminTransferred(previousAdmin, newAdmin);
+    }
 
     function createBatch(
         address tokenAddress,

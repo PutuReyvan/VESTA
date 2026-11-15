@@ -12,6 +12,7 @@ const managerAbi = [
   'function MAX_BATCH_SIZE() view returns (uint256)',
   'function token() view returns (address)',
   'function admin() view returns (address)',
+  'function transferAdmin(address newAdmin)',
   'function nextScheduleId() view returns (uint256)',
   'function createBatch(address tokenAddress,address[] beneficiaries,uint256[] allocations,uint64[] starts,uint64[] cliffs,uint64[] durations)',
   'function getSchedule(uint256) view returns (tuple(uint256 scheduleId,address beneficiary,uint256 allocation,uint64 start,uint64 cliff,uint64 duration,uint256 released))',

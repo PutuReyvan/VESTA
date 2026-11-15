@@ -33,6 +33,7 @@ interface IVestingManager {
     error InvalidClaimTransfer(uint256 expected, uint256 received);
     error InvalidRescueAmount(uint256 requested, uint256 excess);
     error InvalidRescueTransfer(uint256 expected, uint256 received);
+    error InvalidAdmin(address adminAddress);
     // Events
     event BatchCreated(
         address indexed admin,
@@ -54,6 +55,10 @@ interface IVestingManager {
         uint256 amount
     );
     event ExcessTokenRescued(address indexed recipient, uint256 amount);
+    event AdminTransferred(
+        address indexed previousAdmin,
+        address indexed newAdmin
+    );
 
     // =========================================================================
     // FUNCTIONS
@@ -61,6 +66,7 @@ interface IVestingManager {
 
     function token() external view returns (address);
     function admin() external view returns (address);
+    function transferAdmin(address newAdmin) external;
     function nextScheduleId() external view returns (uint256);
     function outstandingAllocation() external view returns (uint256);
 
