@@ -24,10 +24,12 @@ describe("VestingManager foundation", function () {
 
   it("rejects an address that is not an ERC-20 contract", async function () {
     const [deployer] = await ethers.getSigners();
+    const factory = await ethers.getContractFactory("VestingManager");
+
     await expect(
-      ethers.deployContract("VestingManager", [deployer.address]),
+      factory.deploy(deployer.address),
     ).to.be.revertedWithCustomError(
-      await ethers.getContractFactory("VestingManager"),
+      factory,
       "InvalidTokenAddress",
     );
   });
