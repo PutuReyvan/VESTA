@@ -2,7 +2,7 @@ export const SEPOLIA_CHAIN_ID = 11155111
 export const SEPOLIA_CHAIN_HEX = `0x${SEPOLIA_CHAIN_ID.toString(16)}`
 
 export function getExpectedChainId(): number {
-  const configuredChainId = Number(import.meta.env.VITE_CHAIN_ID)
+  const configuredChainId = Number(import.meta.env.VITE_CHAIN_ID?.trim())
   return Number.isInteger(configuredChainId) && configuredChainId > 0
     ? configuredChainId
     : SEPOLIA_CHAIN_ID

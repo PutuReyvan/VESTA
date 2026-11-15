@@ -30,10 +30,14 @@ const tokenAbi = [
   'function decimals() view returns (uint8)',
 ] as const
 
-export const chainId = Number(import.meta.env.VITE_CHAIN_ID || 11155111)
-export const managerAddress = import.meta.env.VITE_CONTRACT_ADDRESS || ''
-export const tokenAddress = import.meta.env.VITE_TOKEN_ADDRESS || ''
-const configuredDeploymentBlock = import.meta.env.VITE_DEPLOYMENT_BLOCK?.trim()
+function readPublicEnv(value: string | undefined) {
+  return value?.trim() ?? ''
+}
+
+export const chainId = Number(readPublicEnv(import.meta.env.VITE_CHAIN_ID) || 11155111)
+export const managerAddress = readPublicEnv(import.meta.env.VITE_CONTRACT_ADDRESS)
+export const tokenAddress = readPublicEnv(import.meta.env.VITE_TOKEN_ADDRESS)
+const configuredDeploymentBlock = readPublicEnv(import.meta.env.VITE_DEPLOYMENT_BLOCK)
 const parsedDeploymentBlock = configuredDeploymentBlock ? Number(configuredDeploymentBlock) : Number.NaN
 export const deploymentBlock = Number.isSafeInteger(parsedDeploymentBlock) && parsedDeploymentBlock >= 0 ? parsedDeploymentBlock : null
 
