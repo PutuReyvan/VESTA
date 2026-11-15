@@ -221,4 +221,58 @@ describe("VestingManager security regressions", function () {
       [],
     );
   });
+
+  it("lets the admin rescue only tokens outside scheduled allocations", async function () {
+    const { admin, beneficiary, token, manager, allocation, start } =
+      await loadFixture(deployFixture);
+    const accidentalTransfer = ethers.parseEther("3");
+
+    await manager.createBatch(
+      token.target,
+      [beneficiary.address],
+      [allocation],
+      [start],
+      [0],
+      [86400],
+    );
+    await token.mint(manager.target, accidentalTransfer);
+
+    const adminBalanceBefore = await token.balanceOf(admin.address);
+    const rescueExcess = manager.getFunction("rescueExcess");
+    await expect(rescueExcess(admin.address, accidentalTransfer))
+      .to.emit(manager, "ExcessTokenRescued")
+      .withArgs(admin.address, accidentalTransfer);
+
+    expect(await token.balanceOf(manager.target)).to.equal(allocation);
+    expect(await manager.outstandingAllocation()).to.equal(allocation);
+    expect(await token.balanceOf(admin.address)).to.equal(
+      adminBalanceBefore + accidentalTransfer,
+    );
+    await expect(rescueExcess(admin.address, 1n))
+      .to.be.revertedWithCustomError(manager, "InvalidRescueAmount")
+      .withArgs(1n, 0n);
+  });
+
+  it("does not let a non-admin rescue scheduled or excess tokens", async function () {
+    const { beneficiary, other, token, manager, allocation, start } =
+      await loadFixture(deployFixture);
+
+    const rescueAsOther = manager.connect(other).getFunction("rescueExcess");
+    await expect(
+      rescueAsOther(other.address, 0),
+    ).to.be.revertedWithCustomError(manager, "Unauthorized");
+
+    await manager.createBatch(
+      token.target,
+      [beneficiary.address],
+      [allocation],
+      [start],
+      [0],
+      [86400],
+    );
+    const rescueExcess = manager.getFunction("rescueExcess");
+    await expect(rescueExcess(other.address, allocation))
+      .to.be.revertedWithCustomError(manager, "InvalidRescueAmount")
+      .withArgs(allocation, 0n);
+  });
 });

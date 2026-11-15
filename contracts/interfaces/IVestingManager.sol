@@ -31,6 +31,8 @@ interface IVestingManager {
     error InvalidAllocation();
     error InvalidScheduleTerms(uint64 cliff, uint64 duration);
     error InvalidClaimTransfer(uint256 expected, uint256 received);
+    error InvalidRescueAmount(uint256 requested, uint256 excess);
+    error InvalidRescueTransfer(uint256 expected, uint256 received);
     // Events
     event BatchCreated(
         address indexed admin,
@@ -51,6 +53,7 @@ interface IVestingManager {
         address indexed beneficiary,
         uint256 amount
     );
+    event ExcessTokenRescued(address indexed recipient, uint256 amount);
 
     // =========================================================================
     // FUNCTIONS
@@ -59,6 +62,7 @@ interface IVestingManager {
     function token() external view returns (address);
     function admin() external view returns (address);
     function nextScheduleId() external view returns (uint256);
+    function outstandingAllocation() external view returns (uint256);
 
     // Anggota 3  Batch Lifecycle
     function createBatch(
@@ -80,4 +84,5 @@ interface IVestingManager {
         uint256 scheduleId
     ) external view returns (uint256);
     function claim(uint256 scheduleId) external;
+    function rescueExcess(address recipient, uint256 amount) external;
 }

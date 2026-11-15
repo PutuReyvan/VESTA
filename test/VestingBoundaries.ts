@@ -60,6 +60,7 @@ describe("VestingManager boundary behavior", function () {
     await claim(1);
     expect((await token.balanceOf(beneficiary.address)) - balanceBefore).to.equal(allocation);
     expect((await manager.getSchedule(1)).released).to.equal(allocation);
+    expect(await manager.outstandingAllocation()).to.equal(0n);
     await expect(claim(1)).to.be.revertedWithCustomError(manager, "NothingToClaim");
   });
 

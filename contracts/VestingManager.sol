@@ -22,6 +22,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
     // solhint-disable-next-line immutable-vars-naming
     address public immutable override admin;
     uint256 public override nextScheduleId;
+    uint256 public override outstandingAllocation;
 
     constructor(address tokenAddress) {
         if (tokenAddress == address(0) || tokenAddress.code.length == 0) {
@@ -113,6 +114,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
         uint256 received = IERC20(token).balanceOf(address(this)) -
             balanceBefore;
         if (received != totalAllocation) revert InvalidAllocation();
+        outstandingAllocation += totalAllocation;
 
         emit BatchCreated(
             msg.sender,
@@ -120,6 +122,32 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
             count,
             totalAllocation
         );
+    }
+
+    /// @notice Returns tokens sent to the manager outside of a funded schedule.
+    /// @dev Scheduled allocations are never available to this function.
+    function rescueExcess(
+        address recipient,
+        uint256 amount
+    ) external override nonReentrant {
+        if (msg.sender != admin) revert Unauthorized();
+        if (recipient == address(0)) revert InvalidBeneficiary();
+
+        uint256 managerBalance = IERC20(token).balanceOf(address(this));
+        uint256 excess = managerBalance > outstandingAllocation
+            ? managerBalance - outstandingAllocation
+            : 0;
+        if (amount > excess) revert InvalidRescueAmount(amount, excess);
+
+        uint256 recipientBalanceBefore = IERC20(token).balanceOf(recipient);
+        IERC20(token).safeTransfer(recipient, amount);
+        uint256 recipientBalanceAfter = IERC20(token).balanceOf(recipient);
+        uint256 received = recipientBalanceAfter > recipientBalanceBefore
+            ? recipientBalanceAfter - recipientBalanceBefore
+            : 0;
+        if (received != amount) revert InvalidRescueTransfer(amount, received);
+
+        emit ExcessTokenRescued(recipient, amount);
     }
 
     // =========================================================================
@@ -210,6 +238,7 @@ contract VestingManager is IVestingManager, ReentrancyGuard {
             schedule.beneficiary
         );
         schedule.released += amount;
+        outstandingAllocation -= amount;
         IERC20(token).safeTransfer(schedule.beneficiary, amount);
 
         uint256 beneficiaryBalanceAfter = IERC20(token).balanceOf(
