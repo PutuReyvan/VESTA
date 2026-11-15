@@ -17,5 +17,6 @@ supabase/.temp/
 docs/
 .agents/
 .vscode/
+.vercel/
 *.pem
 *.key
