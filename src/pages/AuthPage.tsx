@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IconArrowLeft } from '@tabler/icons-react'
 import { Button } from '../components/ui/Button'
 import { Logo } from '../components/ui/Logo'
 import { useAuth } from '../features/auth/useAuth'
@@ -15,9 +16,11 @@ function getErrorMessage(error: unknown): string {
 export function AuthPage({
   mode,
   error,
+  onBack,
 }: {
   mode: 'login' | 'sign-up'
   error?: string | null
+  onBack?: () => void
 }) {
   const isLogin = mode === 'login'
   const { signInWithWallet } = useAuth()
@@ -39,6 +42,11 @@ export function AuthPage({
   return (
     <div className="auth-page">
       <section className="auth-panel">
+        {onBack && (
+          <button type="button" className="auth-back-link" onClick={onBack}>
+            <IconArrowLeft size={16} aria-hidden="true" /> Back to home
+          </button>
+        )}
         <Logo />
         <h1>{isLogin ? 'Welcome Back to Vesta!' : 'Create Your Vesta Account'}</h1>
         <p className="muted">Sign in using your Ethereum wallet. No password required.</p>

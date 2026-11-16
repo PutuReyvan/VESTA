@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import { LayoutShell } from './components/LayoutShell'
 import { AuthPage } from './pages/AuthPage'
+import { LandingPage } from './pages/LandingPage'
 import { CreateBatchPage } from './pages/CreateBatchPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { VestingPage } from './pages/VestingPage'
@@ -17,6 +18,7 @@ import { Logo } from './components/ui/Logo'
 
 function App() {
   const [route, setRoute] = useState<AppRoute>('overview')
+  const [showLanding, setShowLanding] = useState(true)
   const {
     loading,
     session,
@@ -58,7 +60,11 @@ function App() {
   }
 
   if (authAccessState === 'login') {
-    return <AuthPage mode="login" error={error} />
+    return showLanding ? (
+      <LandingPage onLaunch={() => setShowLanding(false)} />
+    ) : (
+      <AuthPage mode="login" error={error} onBack={() => setShowLanding(true)} />
+    )
   }
 
   if (authAccessState === 'identity-error' || authAccessState === 'no-role') {
