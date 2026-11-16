@@ -2,7 +2,7 @@
 
 **VESTA** is a Sepolia demo dApp for managing ERC-20 employee vesting. Its core feature is **Atomic Batch Vesting**: one transaction either creates every schedule in a batch and locks the exact required token amount, or it reverts completely.
 
-**Live demo (Sepolia):** [vesta-gray-five.vercel.app](https://vesta-gray-five.vercel.app/)](https://vesta-app-demo.vercel.app/)
+**Live demo (Sepolia):** (vesta-app-demo.vercel.app)
 
 ## What the app does
 
