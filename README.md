@@ -2,8 +2,8 @@
 
 **VESTA** is a Sepolia demo dApp for managing ERC-20 employee vesting. Its core feature is **Atomic Batch Vesting**: one transaction either creates every schedule in a batch and locks the exact required token amount, or it reverts completely.
 
-**Live demo (Sepolia):** (vesta-app-demo.vercel.app)
-
+**Live demo (Sepolia):** [(vesta-app-demo.vercel.app)
+](https://vesta-app-demo.vercel.app/)
 ## What the app does
 
 An authorized company wallet creates a vesting batch for one or more recipient wallets. Each schedule has an allocation, start time, cliff, and duration. When a recipient's tokens have vested, that recipient claims directly to their own wallet; VESTA never routes vested assets through a relayer.
