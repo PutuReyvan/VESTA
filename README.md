@@ -2,7 +2,7 @@
 
 **VESTA** is a Sepolia demo dApp for managing ERC-20 employee vesting. Its core feature is **Atomic Batch Vesting**: one transaction either creates every schedule in a batch and locks the exact required token amount, or it reverts completely.
 
-**Live demo (Sepolia):** [vesta-gray-five.vercel.app](https://vesta-gray-five.vercel.app/)
+**Live demo (Sepolia):** [vesta-gray-five.vercel.app](https://vesta-gray-five.vercel.app/)](https://vesta-app-demo.vercel.app/)
 
 ## What the app does
 
@@ -109,19 +109,6 @@ Supabase Auth Web3 authenticates the wallet through a Sign-In with Ethereum mess
 Allocation, released, vested, claimable, beneficiary schedule IDs, and schedule status stay on the contract. Claims execute from the beneficiary wallet and transfer directly to that beneficiary. A relayer must never receive or custody vested tokens.
 
 The first wallet sign-in receives the `Employee` application role automatically and opens the recipient profile form so the user can save a display name. After saving, the editor collapses and the saved name appears in the profile/sidebar and admin member directory. Schedule IDs on the current deployment start at 1. Contract and token addresses are loaded from environment variables and shortened in the UI; they are never embedded as frontend constants.
-
-## Supabase keepalive
-
-`.github/workflows/supabase-keepalive.yml` calls a no-data, anonymous health RPC every 30 minutes. Configure these GitHub repository secrets before enabling it:
-
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY` (or legacy `SUPABASE_ANON_KEY`)
-
-The workflow never uses the service-role key, reads user data, or writes rows. Scheduled GitHub jobs can be delayed or disabled by GitHub, and this workflow is not a guarantee against provider-level pausing or plan limits.
-
-## Deployer key rotation
-
-If a deployer private key has ever been pasted into chat, committed, or stored in a shared screenshot, treat it as compromised even when it is no longer in the current branch. Create a new Sepolia-only wallet, fund it from a faucet, deploy a new token and manager with that wallet, update the local environment addresses, sign in with the new wallet, and assign it `Company Admin` before removing the old role. Never send the replacement private key to chat or commit it.
 
 ## On-chain admin rotation
 
